@@ -2,12 +2,15 @@
 # Bytefense OS - Instalador Modular
 # Compatible con Raspberry Pi 5, VM y servidores Linux
 
-set -e
+set -e  # Detener en cualquier error
+set -u  # Detener en variables no definidas
+set -o pipefail  # Detener en errores de pipe
 
 BYTEFENSE_HOME="/opt/bytefense"
 BYTEFENSE_USER="bytefense"
 LOG_FILE="/var/log/bytefense-install.log"
 MODULES_DIR="$BYTEFENSE_HOME/modules"
+GITHUB_BASE="https://raw.githubusercontent.com/bytefense/bytefense-os/main"
 
 # Módulos disponibles
 AVAILABLE_MODULES=("core" "pi-hole" "vpn" "intel" "honeypot" "reticularium")
@@ -16,16 +19,56 @@ SELECTED_MODULES=()
 echo "🛡️  Instalador Modular de Bytefense OS"
 echo "📝 Log de instalación: $LOG_FILE"
 
-# Función de logging
+# Función de logging mejorada
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
 }
 
+# Función para manejo de errores
+error_exit() {
+    log "❌ ERROR: $1"
+    exit 1
+}
+
 # Verificar permisos de root
 if [[ $EUID -ne 0 ]]; then
-   echo "❌ Este script debe ejecutarse como root (sudo ./install.sh)"
-   exit 1
+   error_exit "Este script debe ejecutarse como root (sudo ./install.sh)"
 fi
+
+# Verificar conectividad a internet
+check_connectivity() {
+    log "🌐 Verificando conectividad a internet..."
+    if ! ping -c 1 google.com &> /dev/null; then
+        error_exit "No hay conectividad a internet. Verifica tu conexión."
+    fi
+    log "✅ Conectividad verificada"
+}
+
+# Función para descargar archivos de forma segura
+safe_download() {
+    local url="$1"
+    local output="$2"
+    local description="$3"
+    
+    log "📥 Descargando $description..."
+    
+    # Verificar que la URL responde
+    if ! curl -f -s -I "$url" > /dev/null; then
+        error_exit "No se puede acceder a $url"
+    fi
+    
+    # Descargar con verificación
+    if ! curl -f -s -L "$url" -o "$output"; then
+        error_exit "Error al descargar $description desde $url"
+    fi
+    
+    # Verificar que el archivo se descargó correctamente
+    if [[ ! -f "$output" ]] || [[ ! -s "$output" ]]; then
+        error_exit "El archivo descargado $output está vacío o no existe"
+    fi
+    
+    log "✅ $description descargado correctamente"
+}
 
 # Función para mostrar ayuda
 show_help() {
@@ -128,29 +171,52 @@ if [ -f /etc/os-release ]; then
     . /etc/os-release
     OS=$NAME
     VER=$VERSION_ID
+else
+    error_exit "No se puede detectar la distribución del sistema"
 fi
 
 log "🔍 Sistema detectado: $OS $VER"
 
-# Actualizar sistema
+# Verificar conectividad antes de continuar
+check_connectivity
+
+# Actualizar sistema con manejo de errores
 log "📦 Actualizando repositorios..."
-apt update && apt upgrade -y
-
-# Instalar dependencias base
-log "🔧 Instalando dependencias base..."
-apt install -y curl wget git ufw sqlite3 python3 python3-pip \
-    dnsutils net-tools htop fail2ban jq openssl
-
-# Crear usuario del sistema
-log "👤 Creando usuario bytefense..."
-if ! id "$BYTEFENSE_USER" &>/dev/null; then
-    useradd -r -s /bin/bash -d "$BYTEFENSE_HOME" "$BYTEFENSE_USER"
+if ! apt update; then
+    error_exit "Error al actualizar repositorios"
 fi
 
-# Crear estructura de directorios base
+if ! apt upgrade -y; then
+    log "⚠️  Advertencia: Algunas actualizaciones fallaron, continuando..."
+fi
+
+# Instalar dependencias base (CORREGIDO: agregado qrencode y ufw)
+log "🔧 Instalando dependencias base..."
+if ! apt install -y curl wget git ufw qrencode sqlite3 python3 python3-pip \
+    dnsutils net-tools htop fail2ban jq openssl; then
+    error_exit "Error al instalar dependencias base"
+fi
+
+# Crear usuario del sistema con validación
+log "👤 Creando usuario bytefense..."
+if ! id "$BYTEFENSE_USER" &>/dev/null; then
+    if ! useradd -r -s /bin/bash -d "$BYTEFENSE_HOME" "$BYTEFENSE_USER"; then
+        error_exit "Error al crear usuario $BYTEFENSE_USER"
+    fi
+    log "✅ Usuario $BYTEFENSE_USER creado"
+else
+    log "ℹ️  Usuario $BYTEFENSE_USER ya existe"
+fi
+
+# Crear estructura de directorios base con validación
 log "📁 Creando estructura de directorios..."
-mkdir -p "$BYTEFENSE_HOME"/{bin,feeds,intel,honey,wireguard,web,docs,system,logs,modules}
-chown -R "$BYTEFENSE_USER":"$BYTEFENSE_USER" "$BYTEFENSE_HOME"
+if ! mkdir -p "$BYTEFENSE_HOME"/{bin,feeds,intel,honey,wireguard,web,docs,system,logs,modules}; then
+    error_exit "Error al crear estructura de directorios"
+fi
+
+if ! chown -R "$BYTEFENSE_USER":"$BYTEFENSE_USER" "$BYTEFENSE_HOME"; then
+    error_exit "Error al cambiar propietario de $BYTEFENSE_HOME"
+fi
 
 # Instalar módulos seleccionados
 for module in "${SELECTED_MODULES[@]}"; do
@@ -195,24 +261,35 @@ install_core_module() {
     mkdir -p "$BYTEFENSE_HOME"/{bin,web,system,logs,intel}
     mkdir -p "$MODULES_DIR"
     
-    # Instalar dependencias Python
+    # Instalar dependencias Python con manejo de errores
     log "🐍 Instalando dependencias Python..."
-    pip3 install --upgrade pip
-    pip3 install flask pyjwt bcrypt pyotp qrcode[pil] requests feedparser schedule
+    if ! pip3 install --upgrade pip; then
+        error_exit "Error al actualizar pip"
+    fi
     
-    # Copiar archivos base
-    cp -r bin/* "$BYTEFENSE_HOME/bin/" 2>/dev/null || true
-    cp -r web/* "$BYTEFENSE_HOME/web/" 2>/dev/null || true
-    cp -r system/* "$BYTEFENSE_HOME/system/" 2>/dev/null || true
-    cp -r docs/* "$BYTEFENSE_HOME/docs/" 2>/dev/null || true
+    if ! pip3 install flask pyjwt bcrypt pyotp qrcode[pil] requests feedparser schedule; then
+        error_exit "Error al instalar dependencias Python"
+    fi
     
-    # Hacer ejecutables los scripts
-    chmod +x "$BYTEFENSE_HOME/bin/"*
+    # Descargar scripts desde GitHub de forma segura
+    local scripts=("bytefense-api.py" "bytefense-ctl" "bytefense-alerts.py" "bytefense-auth.py")
     
-    # Crear enlace simbólico
-    ln -sf "$BYTEFENSE_HOME/bin/bytefense-ctl" /usr/local/bin/bytefense-ctl
+    for script in "${scripts[@]}"; do
+        safe_download "$GITHUB_BASE/bin/$script" "$BYTEFENSE_HOME/bin/$script" "script $script"
+        chmod +x "$BYTEFENSE_HOME/bin/$script"
+    done
     
-    # Configurar firewall básico
+    # Descargar archivos web
+    safe_download "$GITHUB_BASE/web/index.html" "$BYTEFENSE_HOME/web/index.html" "dashboard web"
+    safe_download "$GITHUB_BASE/system/schema.sql" "$BYTEFENSE_HOME/system/schema.sql" "esquema de base de datos"
+    
+    # Crear enlace simbólico con validación
+    if ! ln -sf "$BYTEFENSE_HOME/bin/bytefense-ctl" /usr/local/bin/bytefense-ctl; then
+        error_exit "Error al crear enlace simbólico para bytefense-ctl"
+    fi
+    
+    # Configurar firewall básico con validación
+    log "🔥 Configurando firewall..."
     ufw --force reset
     ufw default deny incoming
     ufw default allow outgoing
@@ -267,8 +344,12 @@ EOF
 install_vpn_module() {
     log "🔐 Instalando módulo VPN..."
     
-    # Instalar WireGuard
-    apt install -y wireguard wireguard-tools qrencode
+    # Instalar WireGuard con qrencode (YA CORREGIDO)
+    if ! apt install -y wireguard wireguard-tools; then
+        error_exit "Error al instalar WireGuard"
+    fi
+    
+    # qrencode ya está instalado en dependencias base
     
     # Configurar firewall
     ufw allow 51820/udp # WireGuard
@@ -604,18 +685,30 @@ EOF
 
 # Configurar servicios systemd base
 log "⚙️  Configurando servicios systemd..."
-cp "$BYTEFENSE_HOME/system/"*.service /etc/systemd/system/ 2>/dev/null || true
-systemctl daemon-reload
+if [[ -d "$BYTEFENSE_HOME/system" ]]; then
+    cp "$BYTEFENSE_HOME/system/"*.service /etc/systemd/system/ 2>/dev/null || true
+    systemctl daemon-reload
+fi
 
 # Habilitar servicios base
 log "🚀 Habilitando servicios base..."
-systemctl enable bytefense-dashboard 2>/dev/null || true
-systemctl enable bytefense-watch 2>/dev/null || true
-systemctl start bytefense-dashboard 2>/dev/null || true
-systemctl start bytefense-watch 2>/dev/null || true
+for service in bytefense-dashboard bytefense-watch; do
+    if systemctl enable "$service" 2>/dev/null; then
+        log "✅ Servicio $service habilitado"
+        if systemctl start "$service" 2>/dev/null; then
+            log "✅ Servicio $service iniciado"
+        else
+            log "⚠️  Advertencia: No se pudo iniciar $service"
+        fi
+    else
+        log "⚠️  Advertencia: No se pudo habilitar $service"
+    fi
+done
 
 # Habilitar firewall
-ufw --force enable
+if ! ufw --force enable; then
+    log "⚠️  Advertencia: Error al habilitar firewall UFW"
+fi
 
 log "✅ Instalación modular completada!"
 echo ""
