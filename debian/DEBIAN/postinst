@@ -1,0 +1,105 @@
+#!/bin/bash
+# Bytefense OS - Script de Post-instalación
+
+set -e
+
+BYTEFENSE_HOME="/opt/bytefense"
+BYTEFENSE_USER="bytefense"
+LOG_FILE="/var/log/bytefense-install.log"
+
+# Función de logging
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
+}
+
+case "$1" in
+    configure)
+        log "🛡️ Configurando Bytefense OS..."
+        
+        # Crear directorios adicionales
+        log "📁 Creando estructura de directorios..."
+        mkdir -p "$BYTEFENSE_HOME"/{intel,honey,wireguard,logs}
+        
+        # Establecer permisos correctos
+        log "🔐 Configurando permisos..."
+        chown -R "$BYTEFENSE_USER":"$BYTEFENSE_USER" "$BYTEFENSE_HOME"
+        chmod +x "$BYTEFENSE_HOME/bin/"*
+        
+        # Crear enlace simbólico para comando global
+        log "🔗 Creando enlace simbólico..."
+        ln -sf "$BYTEFENSE_HOME/bin/bytefense-ctl" /usr/local/bin/bytefense-ctl
+        
+        # Recargar systemd
+        log "⚙️ Recargando systemd..."
+        systemctl daemon-reload
+        
+        # Habilitar servicios (pero no iniciar aún)
+        log "🚀 Habilitando servicios..."
+        systemctl enable bytefense-dashboard.service
+        systemctl enable bytefense-watch.service
+        
+        # Inicializar base de datos
+        log "🗄️ Inicializando base de datos..."
+        if [ ! -f "$BYTEFENSE_HOME/intel/threats.db" ]; then
+            sqlite3 "$BYTEFENSE_HOME/intel/threats.db" < "$BYTEFENSE_HOME/system/schema.sql"
+            chown "$BYTEFENSE_USER":"$BYTEFENSE_USER" "$BYTEFENSE_HOME/intel/threats.db"
+        fi
+        
+        # Configurar firewall básico
+        log "🔥 Configurando firewall básico..."
+        ufw --force enable
+        ufw default deny incoming
+        ufw default allow outgoing
+        ufw allow ssh
+        ufw allow 8080/tcp comment 'Bytefense Dashboard'
+        ufw allow 8081/tcp comment 'Pi-hole Admin'
+        ufw allow 51820/udp comment 'WireGuard VPN'
+        
+        # Instalar Pi-hole si no está instalado
+        if ! command -v pihole &> /dev/null; then
+            log "🕳️ Instalando Pi-hole..."
+            curl -sSL https://install.pi-hole.net | bash /dev/stdin --unattended
+        fi
+        
+        log "✅ Configuración completada"
+        
+        # Mostrar información post-instalación
+        echo ""
+        echo "🛡️ Bytefense OS instalado correctamente"
+        echo "📊 Para configurar el sistema, ejecuta: sudo bytefense-ctl init"
+        echo "🌐 Dashboard estará disponible en: http://$(hostname -I | awk '{print $1}'):8080"
+        echo "🕳️ Pi-hole estará disponible en: http://$(hostname -I | awk '{print $1}'):8081/admin"
+        echo "📖 Documentación: /usr/share/doc/bytefense-os/"
+        echo ""
+        echo "⚠️ IMPORTANTE: Ejecuta 'sudo bytefense-ctl init' para completar la configuración"
+        
+        # Preguntar si desea ejecutar la configuración inicial
+        if [ -t 0 ]; then  # Solo si hay terminal interactiva
+            echo ""
+            read -p "¿Deseas ejecutar la configuración inicial ahora? (y/N): " -n 1 -r
+            echo
+            if [[ $REPLY =~ ^[Yy]$ ]]; then
+                log "🚀 Ejecutando configuración inicial..."
+                "$BYTEFENSE_HOME/bin/bytefense-ctl" init
+                
+                # Iniciar servicios después de la configuración
+                systemctl start bytefense-dashboard.service
+                systemctl start bytefense-watch.service
+                
+                echo "✅ Bytefense OS configurado e iniciado"
+            else
+                echo "ℹ️ Puedes ejecutar la configuración más tarde con: sudo bytefense-ctl init"
+            fi
+        fi
+        ;;
+        
+    abort-upgrade|abort-remove|abort-deconfigure)
+        log "❌ Instalación abortada: $1"
+        ;;
+        
+    *)
+        log "❓ Acción desconocida: $1"
+        ;;
+esac
+
+exit 0

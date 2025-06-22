@@ -1,0 +1,475 @@
+#!/bin/bash
+# Bytefense OS - Controlador Corregido
+# Versión que soluciona los problemas identificados
+
+set -euo pipefail  # Modo estricto
+
+# === CONFIGURACIÓN ===
+BYTEFENSE_HOME="/opt/bytefense"
+LOG_FILE="$BYTEFENSE_HOME/logs/ctl.log"
+MODE_FILE="$BYTEFENSE_HOME/system/mode"
+NODE_FILE="$BYTEFENSE_HOME/system/nodename"
+CONFIG_FILE="$BYTEFENSE_HOME/system/bytefense.conf"
+DB_FILE="$BYTEFENSE_HOME/intel/threats.db"
+
+# === COLORES MEJORADOS ===
+if [ -t 1 ]; then  # Solo usar colores en terminal
+    RED=$(tput setaf 1)
+    GRN=$(tput setaf 2)
+    YEL=$(tput setaf 3)
+    BLU=$(tput setaf 4)
+    RST=$(tput sgr0)
+else
+    RED="" GRN="" YEL="" BLU="" RST=""
+fi
+
+# === FUNCIONES DE UTILIDAD ===
+log_action() {
+    local level="$1"
+    local message="$2"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    
+    # Crear directorio de logs si no existe
+    mkdir -p "$(dirname "$LOG_FILE")"
+    
+    echo "[$timestamp] [$level] $message" >> "$LOG_FILE"
+}
+
+print_success() {
+    echo "${GRN}✅ $1${RST}"
+    log_action "SUCCESS" "$1"
+}
+
+print_error() {
+    echo "${RED}❌ $1${RST}" >&2
+    log_action "ERROR" "$1"
+}
+
+print_warning() {
+    echo "${YEL}⚠️  $1${RST}"
+    log_action "WARN" "$1"
+}
+
+print_info() {
+    echo "${BLU}ℹ️  $1${RST}"
+    log_action "INFO" "$1"
+}
+
+error_exit() {
+    print_error "$1"
+    exit 1
+}
+
+# Verificar permisos de root para operaciones críticas
+check_root() {
+    if [ "$EUID" -ne 0 ]; then
+        error_exit "Esta operación requiere permisos de root"
+    fi
+}
+
+# Verificar si un servicio existe
+service_exists() {
+    systemctl list-unit-files "$1.service" >/dev/null 2>&1
+}
+
+# Backup seguro de archivos
+safe_backup() {
+    local file="$1"
+    if [ -f "$file" ]; then
+        cp "$file" "$file.backup.$(date +%s)" || print_warning "No se pudo crear backup de $file"
+    fi
+}
+
+# === VALIDACIÓN DE ARGUMENTOS ===
+if [ $# -eq 0 ]; then
+    cat << EOF
+${YEL}Uso:${RST} bytefense-ctl {comando} [opciones]
+
+${GRN}Comandos disponibles:${RST}
+  ${BLU}init${RST}     - Inicializar nodo Bytefense
+  ${BLU}status${RST}   - Mostrar estado del sistema
+  ${BLU}intel${RST}    - Gestionar inteligencia de amenazas
+  ${BLU}sigilo${RST}   - Activar/desactivar modo sigilo
+  ${BLU}update${RST}   - Actualizar feeds de amenazas
+  ${BLU}help${RST}     - Mostrar ayuda detallada
+
+${YEL}Ejemplos:${RST}
+  bytefense-ctl init --name=mi-nodo --type=master
+  bytefense-ctl intel add 192.168.1.100
+  bytefense-ctl sigilo on
+EOF
+    exit 1
+fi
+
+# === FUNCIONES PRINCIPALES ===
+init_node() {
+    print_info "Iniciando wizard de configuración de Bytefense..."
+    
+    # Crear estructura de directorios
+    local dirs=(
+        "$BYTEFENSE_HOME/system"
+        "$BYTEFENSE_HOME/feeds"
+        "$BYTEFENSE_HOME/intel"
+        "$BYTEFENSE_HOME/logs"
+        "$BYTEFENSE_HOME/modules"
+    )
+    
+    for dir in "${dirs[@]}"; do
+        if mkdir -p "$dir"; then
+            print_success "Directorio creado: $dir"
+        else
+            error_exit "No se pudo crear directorio: $dir"
+        fi
+    done
+    
+    # Generar ID único del nodo
+    local node_id="bytefense-node-$(date +%s)-$(hostname -s)"
+    echo "$node_id" > "$NODE_FILE" || error_exit "No se pudo crear archivo de nodo"
+    
+    # Configuración por defecto
+    local node_type="${2:-master}"
+    echo "$node_type" > "$MODE_FILE" || error_exit "No se pudo crear archivo de modo"
+    
+    # Crear base de datos SQLite
+    if command -v sqlite3 >/dev/null 2>&1; then
+        sqlite3 "$DB_FILE" "CREATE TABLE IF NOT EXISTS blocked_ips (id INTEGER PRIMARY KEY, ip TEXT UNIQUE, reason TEXT, date TEXT);"
+        sqlite3 "$DB_FILE" "CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY, ip TEXT, event_type TEXT, date TEXT);"
+        print_success "Base de datos inicializada"
+    else
+        print_warning "SQLite3 no disponible, usando archivos planos"
+        touch "$BYTEFENSE_HOME/intel/blocked_ips.txt"
+    fi
+    
+    # Crear archivo de configuración
+    cat > "$CONFIG_FILE" << EOF
+# Configuración de Bytefense OS
+NODE_ID="$node_id"
+NODE_TYPE="$node_type"
+NODE_NAME="$(hostname)"
+CREATED_DATE="$(date '+%Y-%m-%d %H:%M:%S')"
+VERSION="1.0"
+API_PORT="8080"
+EOF
+    
+    print_success "Nodo inicializado como $node_type con ID: $node_id"
+    log_action "INIT" "Nodo inicializado: $node_id ($node_type)"
+}
+
+show_status() {
+    print_info "Estado actual de Bytefense OS"
+    echo "================================"
+    
+    # Información del nodo
+    if [ -f "$NODE_FILE" ] && [ -f "$MODE_FILE" ]; then
+        local node_name=$(cat "$NODE_FILE" 2>/dev/null || echo "desconocido")
+        local node_mode=$(cat "$MODE_FILE" 2>/dev/null || echo "desconocido")
+        
+        echo "${BLU}Nodo:${RST} $node_name"
+        echo "${BLU}Modo:${RST} $node_mode"
+    else
+        print_warning "Nodo no inicializado. Ejecuta: bytefense-ctl init"
+    fi
+    
+    # Estado de servicios
+    echo ""
+    print_info "Estado de servicios:"
+    
+    local services=("bytefense-dashboard" "bytefense-watch" "lighttpd" "nginx")
+    for service in "${services[@]}"; do
+        if service_exists "$service"; then
+            if systemctl is-active --quiet "$service" 2>/dev/null; then
+                print_success "$service - ACTIVO"
+            else
+                print_error "$service - INACTIVO"
+            fi
+        fi
+    done
+    
+    # Información de red
+    echo ""
+    print_info "Información de red:"
+    local local_ip=$(hostname -I | awk '{print $1}' 2>/dev/null || echo "N/A")
+    echo "${BLU}IP Local:${RST} $local_ip"
+    echo "${BLU}Panel Web:${RST} http://$local_ip:8080"
+    echo "${BLU}Reticularium:${RST} http://$local_ip:3000"
+    
+    # Estadísticas de amenazas
+    if [ -f "$DB_FILE" ] && command -v sqlite3 >/dev/null 2>&1; then
+        local blocked_count=$(sqlite3 "$DB_FILE" "SELECT COUNT(*) FROM blocked_ips;" 2>/dev/null || echo "0")
+        local events_24h=$(sqlite3 "$DB_FILE" "SELECT COUNT(*) FROM events WHERE date > datetime('now', '-24 hours');" 2>/dev/null || echo "0")
+        
+        echo ""
+        print_info "Estadísticas de seguridad:"
+        echo "${BLU}IPs bloqueadas:${RST} $blocked_count"
+        echo "${BLU}Eventos (24h):${RST} $events_24h"
+    fi
+    
+    log_action "STATUS" "Estado consultado"
+}
+
+manage_intel() {
+    local action="${2:-show}"
+    
+    case "$action" in
+        show)
+            print_info "Amenazas registradas:"
+            
+            if [ -f "$DB_FILE" ] && command -v sqlite3 >/dev/null 2>&1; then
+                local count=$(sqlite3 "$DB_FILE" "SELECT COUNT(*) FROM blocked_ips;" 2>/dev/null || echo "0")
+                echo "${BLU}Total de IPs bloqueadas:${RST} $count"
+                
+                if [ "$count" -gt 0 ]; then
+                    echo ""
+                    echo "${YEL}Últimas 10 IPs bloqueadas:${RST}"
+                    sqlite3 "$DB_FILE" "SELECT ip, reason, date FROM blocked_ips ORDER BY date DESC LIMIT 10;" 2>/dev/null | while IFS='|' read -r ip reason date; do
+                        echo "  ${RED}$ip${RST} - $reason (${YEL}$date${RST})"
+                    done
+                fi
+            else
+                # Fallback a archivo plano
+                if [ -f "$BYTEFENSE_HOME/feeds/blacklist-ips.txt" ]; then
+                    cat "$BYTEFENSE_HOME/feeds/blacklist-ips.txt"
+                else
+                    print_warning "Sin datos de amenazas disponibles"
+                fi
+            fi
+            ;;
+        add)
+            local ip="$3"
+            if [ -z "$ip" ]; then
+                error_exit "Debe especificar una IP para bloquear"
+            fi
+            
+            # Validar formato IP
+            if [[ ! $ip =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+                error_exit "Formato de IP inválido: $ip"
+            fi
+            
+            if [ -f "$DB_FILE" ] && command -v sqlite3 >/dev/null 2>&1; then
+                sqlite3 "$DB_FILE" "INSERT OR IGNORE INTO blocked_ips (ip, reason, date) VALUES ('$ip', 'Manual', datetime('now'));" 2>/dev/null
+                print_success "IP $ip agregada a la lista de bloqueo"
+            else
+                echo "$ip" >> "$BYTEFENSE_HOME/feeds/blacklist-ips.txt"
+                print_success "IP $ip agregada al archivo de bloqueo"
+            fi
+            ;;
+        *)
+            print_error "Acción no válida para intel. Usa: show | add <ip>"
+            ;;
+    esac
+    
+    log_action "INTEL" "Acción: $action"
+}
+
+manage_sigilo() {
+    local action="${2:-status}"
+    
+    case "$action" in
+        on)
+            print_info "Activando modo sigilo..."
+            check_root
+            
+            # Backup del hostname actual
+            safe_backup "/etc/hostname"
+            
+            # Detener servicios web de forma segura
+            local web_services=("lighttpd" "nginx" "apache2" "bytefense-dashboard")
+            for service in "${web_services[@]}"; do
+                if service_exists "$service" && systemctl is-active --quiet "$service" 2>/dev/null; then
+                    if systemctl stop "$service" 2>/dev/null; then
+                        print_success "Servicio $service detenido"
+                        echo "$service" >> "$BYTEFENSE_HOME/system/.stopped_services"
+                    else
+                        print_warning "No se pudo detener $service"
+                    fi
+                fi
+            done
+            
+            # Configurar firewall de forma segura
+            if command -v ufw >/dev/null 2>&1; then
+                if ufw status | grep -q "Status: active"; then
+                    ufw deny 8080 >/dev/null 2>&1 && print_success "Puerto 8080 bloqueado"
+                    ufw deny 3000 >/dev/null 2>&1 && print_success "Puerto 3000 bloqueado"
+                else
+                    print_warning "UFW no está activo"
+                fi
+            fi
+            
+            # Cambiar hostname de forma segura
+            if command -v hostnamectl >/dev/null 2>&1; then
+                hostnamectl set-hostname "server" 2>/dev/null && print_success "Hostname cambiado a 'server'"
+            fi
+            
+            # Marcar modo sigilo como activo
+            touch "$BYTEFENSE_HOME/system/.sigilo_active"
+            print_success "Modo sigilo activado"
+            ;;
+        off)
+            print_info "Desactivando modo sigilo..."
+            check_root
+            
+            # Restaurar servicios
+            if [ -f "$BYTEFENSE_HOME/system/.stopped_services" ]; then
+                while read -r service; do
+                    if service_exists "$service"; then
+                        systemctl start "$service" 2>/dev/null && print_success "Servicio $service restaurado"
+                    fi
+                done < "$BYTEFENSE_HOME/system/.stopped_services"
+                rm -f "$BYTEFENSE_HOME/system/.stopped_services"
+            fi
+            
+            # Restaurar firewall
+            if command -v ufw >/dev/null 2>&1; then
+                ufw allow 8080 >/dev/null 2>&1 && print_success "Puerto 8080 desbloqueado"
+                ufw allow 3000 >/dev/null 2>&1 && print_success "Puerto 3000 desbloqueado"
+            fi
+            
+            # Restaurar hostname
+            if [ -f "/etc/hostname.backup."* ]; then
+                local backup_file=$(ls -t /etc/hostname.backup.* 2>/dev/null | head -1)
+                if [ -n "$backup_file" ]; then
+                    cp "$backup_file" "/etc/hostname" && print_success "Hostname restaurado"
+                fi
+            fi
+            
+            # Remover marca de sigilo
+            rm -f "$BYTEFENSE_HOME/system/.sigilo_active"
+            print_success "Modo sigilo desactivado"
+            ;;
+        status)
+            if [ -f "$BYTEFENSE_HOME/system/.sigilo_active" ]; then
+                print_warning "Modo sigilo: ACTIVO"
+            else
+                print_success "Modo sigilo: INACTIVO"
+            fi
+            ;;
+        *)
+            print_error "Acción no válida para sigilo. Usa: on | off | status"
+            ;;
+    esac
+    
+    log_action "SIGILO" "Acción: $action"
+}
+
+update_feeds() {
+    print_info "Actualizando feeds de inteligencia de amenazas..."
+    
+    # Crear directorio de feeds si no existe
+    mkdir -p "$BYTEFENSE_HOME/feeds"
+    
+    # URLs de feeds de ejemplo (en producción usar feeds reales)
+    local feeds=(
+        "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level1.netset"
+        "https://rules.emergingthreats.net/fwrules/emerging-Block-IPs.txt"
+    )
+    
+    local updated=0
+    
+    if command -v curl >/dev/null 2>&1; then
+        for feed_url in "${feeds[@]}"; do
+            local feed_name=$(basename "$feed_url")
+            local temp_file="/tmp/bytefense_$feed_name"
+            
+            if curl -s -o "$temp_file" "$feed_url" 2>/dev/null; then
+                if [ -s "$temp_file" ]; then
+                    mv "$temp_file" "$BYTEFENSE_HOME/feeds/$feed_name"
+                    print_success "Feed actualizado: $feed_name"
+                    ((updated++))
+                else
+                    print_warning "Feed vacío: $feed_name"
+                fi
+            else
+                print_warning "No se pudo descargar: $feed_name"
+            fi
+        done
+    else
+        print_warning "curl no disponible, simulando actualización..."
+        # Simulación para testing
+        echo "# Feed simulado - $(date)" > "$BYTEFENSE_HOME/feeds/simulated_feed.txt"
+        updated=1
+    fi
+    
+    if [ $updated -gt 0 ]; then
+        print_success "$updated feeds actualizados correctamente"
+    else
+        print_warning "No se pudieron actualizar los feeds"
+    fi
+    
+    log_action "UPDATE" "$updated feeds actualizados"
+}
+
+show_help() {
+    cat << EOF
+${GRN}🛡️  Bytefense OS - Controlador Principal${RST}
+
+${YEL}COMANDOS DISPONIBLES:${RST}
+
+${BLU}init${RST} [--type=master|satellite]
+    Inicializar nodo Bytefense con configuración básica
+    
+${BLU}status${RST}
+    Mostrar estado completo del sistema y servicios
+    
+${BLU}intel${RST} {show|add} [ip]
+    Gestionar inteligencia de amenazas
+    • show: Mostrar IPs bloqueadas
+    • add <ip>: Agregar IP a lista de bloqueo
+    
+${BLU}sigilo${RST} {on|off|status}
+    Controlar modo sigilo (ocultar servicios)
+    • on: Activar modo sigilo
+    • off: Desactivar modo sigilo
+    • status: Mostrar estado actual
+    
+${BLU}update${RST}
+    Actualizar feeds de inteligencia de amenazas
+    
+${BLU}help${RST}
+    Mostrar esta ayuda
+
+${YEL}EJEMPLOS:${RST}
+    bytefense-ctl init --type=master
+    bytefense-ctl intel add 192.168.1.100
+    bytefense-ctl sigilo on
+    bytefense-ctl update
+
+${YEL}ARCHIVOS DE CONFIGURACIÓN:${RST}
+    • Config: $CONFIG_FILE
+    • Logs: $LOG_FILE
+    • Base de datos: $DB_FILE
+
+EOF
+}
+
+# === PROCESAMIENTO DE COMANDOS ===
+log_action "COMMAND" "Ejecutando: $*"
+
+case "$1" in
+    init)
+        shift
+        init_node "$@"
+        ;;
+    status)
+        show_status
+        ;;
+    intel)
+        manage_intel "$@"
+        ;;
+    sigilo)
+        manage_sigilo "$@"
+        ;;
+    update)
+        update_feeds
+        ;;
+    help|--help|-h)
+        show_help
+        ;;
+    *)
+        print_error "Comando no reconocido: $1"
+        echo ""
+        show_help
+        exit 1
+        ;;
+esac
+
+log_action "COMPLETE" "Comando completado exitosamente"

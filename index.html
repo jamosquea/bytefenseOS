@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bytefense OS - Sistema de Defensa Digital Distribuida</title>
+    <meta name="description" content="Sistema de defensa digital distribuida para proteger redes domésticas y empresariales con filtrado DNS, VPN segura y monitoreo en tiempo real.">
+    <meta name="keywords" content="cybersecurity, firewall, VPN, DNS filtering, network security, Pi-hole, WireGuard">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://jamosquea.github.io/bytefenseOS/">
+    <meta property="og:title" content="Bytefense OS - Sistema de Defensa Digital Distribuida">
+    <meta property="og:description" content="Protege tu red con Bytefense OS: filtrado DNS, VPN segura, monitoreo de amenazas y firewall inteligente.">
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://jamosquea.github.io/bytefenseOS/">
+    <meta property="twitter:title" content="Bytefense OS - Sistema de Defensa Digital Distribuida">
+    <meta property="twitter:description" content="Protege tu red con Bytefense OS: filtrado DNS, VPN segura, monitoreo de amenazas y firewall inteligente.">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #00ff00;
+            --secondary-color: #0066cc;
+            --accent-color: #ff6600;
+            --bg-dark: #0a0a0a;
+            --bg-card: #1a1a1a;
+            --text-light: #ffffff;
+            --text-muted: #cccccc;
+            --border-color: #333333;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-light);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+        
+        .matrix-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            opacity: 0.05;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90" fill="%2300ff00">01</text></svg>') repeat;
+            animation: matrix-scroll 20s linear infinite;
+        }
+        
+        @keyframes matrix-scroll {
+            0% { transform: translateY(0); }
+            100% { transform: translateY(-100px); }
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        /* Header */
+        .header {
+            background: rgba(26, 26, 26, 0.95);
+            backdrop-filter: blur(10px);
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            border-bottom: 2px solid var(--primary-color);
+        }
+        
+        .nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 0;
+        }
+        
+        .logo {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+        
+        .nav-links {
+            display: flex;
+            list-style: none;
+            gap: 2rem;
+        }
+        
+        .nav-links a {
+            color: var(--text-light);
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+        
+        .nav-links a:hover {
+            color: var(--primary-color);
+        }
+        
+        /* Hero Section */
+        .hero {
+            padding: 120px 0 80px;
+            text-align: center;
+            background: linear-gradient(135deg, rgba(0, 255, 0, 0.1) 0%, rgba(0, 102, 204, 0.1) 100%);
+        }
+        
+        .hero h1 {
+            font-size: 3.5rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .hero .subtitle {
+            font-size: 1.5rem;
+            color: var(--text-muted);
+            margin-bottom: 2rem;
+        }
+        
+        .badges {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+        
+        .badge {
+            background: var(--bg-card);
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            border: 1px solid var(--border-color);
+            font-size: 0.9rem;
+        }
+        
+        .cta-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 2rem;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            font-size: 1rem;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        
+        .btn-primary {
+            background: var(--primary-color);
+            color: var(--bg-dark);
+            font-weight: bold;
+        }
+        
+        .btn-primary:hover {
+            background: #00cc00;
+            transform: translateY(-2px);
+        }
+        
+        .btn-secondary {
+            background: transparent;
+            color: var(--text-light);
+            border: 2px solid var(--secondary-color);
+        }
+        
+        .btn-secondary:hover {
+            background: var(--secondary-color);
+            transform: translateY(-2px);
+        }
+        
+        /* Features Section */
+        .features {
+            padding: 80px 0;
+            background: var(--bg-card);
+        }
+        
+        .section-title {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 3rem;
+            color: var(--primary-color);
+        }
+        
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+        
+        .feature-card {
+            background: var(--bg-dark);
+            padding: 2rem;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            transition: transform 0.3s, border-color 0.3s;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--primary-color);
+        }
+        
+        .feature-icon {
+            font-size: 3rem;
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+        }
+        
+        .feature-card h3 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            color: var(--text-light);
+        }
+        
+        .feature-card p {
+            color: var(--text-muted);
+        }
+        
+        /* Installation Section */
+        .installation {
+            padding: 80px 0;
+        }
+        
+        .install-steps {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+        
+        .step {
+            text-align: center;
+            padding: 2rem;
+        }
+        
+        .step-number {
+            width: 60px;
+            height: 60px;
+            background: var(--primary-color);
+            color: var(--bg-dark);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin: 0 auto 1rem;
+        }
+        
+        .code-block {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            padding: 1.5rem;
+            margin: 2rem 0;
+            font-family: 'Courier New', monospace;
+            overflow-x: auto;
+        }
+        
+        .code-block pre {
+            color: var(--primary-color);
+            margin: 0;
+        }
+        
+        /* Requirements Section */
+        .requirements {
+            padding: 80px 0;
+            background: var(--bg-card);
+        }
+        
+        .req-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+        
+        .req-item {
+            background: var(--bg-dark);
+            padding: 1.5rem;
+            border-radius: 5px;
+            border-left: 4px solid var(--primary-color);
+        }
+        
+        .req-item strong {
+            color: var(--primary-color);
+        }
+        
+        /* Footer */
+        .footer {
+            background: var(--bg-dark);
+            padding: 40px 0;
+            text-align: center;
+            border-top: 1px solid var(--border-color);
+        }
+        
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+        
+        .footer-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+        
+        .footer-links a:hover {
+            color: var(--primary-color);
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .nav {
+                flex-direction: column;
+                gap: 1rem;
+            }
+            
+            .nav-links {
+                gap: 1rem;
+            }
+            
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+            
+            .hero .subtitle {
+                font-size: 1.2rem;
+            }
+            
+            .cta-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+        
+        .scroll-indicator {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: var(--bg-dark);
+            z-index: 1001;
+        }
+        
+        .scroll-progress {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+            width: 0%;
+            transition: width 0.1s;
+        }
+    </style>
+</head>
+<body>
+    <div class="matrix-bg"></div>
+    
+    <div class="scroll-indicator">
+        <div class="scroll-progress" id="scrollProgress"></div>
+    </div>
+    
+    <header class="header">
+        <div class="container">
+            <nav class="nav">
+                <a href="#" class="logo">
+                    <i class="fas fa-shield-alt"></i> Bytefense OS
+                </a>
+                <ul class="nav-links">
+                    <li><a href="#features">Características</a></li>
+                    <li><a href="#installation">Instalación</a></li>
+                    <li><a href="#requirements">Requisitos</a></li>
+                    <li><a href="https://github.com/jamosquea/bytefenseOS" target="_blank">GitHub</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+    
+    <main>
+        <section class="hero">
+            <div class="container">
+                <h1>Bytefense OS</h1>
+                <p class="subtitle">Sistema de Defensa Digital Distribuida</p>
+                
+                <div class="badges">
+                    <span class="badge">
+                        <i class="fab fa-github"></i> MIT License
+                    </span>
+                    <span class="badge">
+                        <i class="fab fa-python"></i> Python 3.8+
+                    </span>
+                    <span class="badge">
+                        <i class="fab fa-linux"></i> Linux Platform
+                    </span>
+                </div>
+                
+                <p style="max-width: 600px; margin: 0 auto; font-size: 1.1rem; color: var(--text-muted);">
+                    Protege tu red doméstica o empresarial con un sistema completo de defensa digital que incluye 
+                    filtrado DNS, VPN segura, monitoreo de amenazas y firewall inteligente.
+                </p>
+                
+                <div class="cta-buttons">
+                    <a href="#installation" class="btn btn-primary">
+                        <i class="fas fa-download"></i> Instalar Ahora
+                    </a>
+                    <a href="https://github.com/jamosquea/bytefenseOS" target="_blank" class="btn btn-secondary">
+                        <i class="fab fa-github"></i> Ver en GitHub
+                    </a>
+                </div>
+            </div>
+        </section>
+        
+        <section id="features" class="features">
+            <div class="container">
+                <h2 class="section-title">🛡️ Características Principales</h2>
+                
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-filter"></i>
+                        </div>
+                        <h3>Filtrado DNS</h3>
+                        <p>Bloqueo automático de dominios maliciosos y publicidad no deseada usando Pi-hole para una navegación más segura y rápida.</p>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-shield-virus"></i>
+                        </div>
+                        <h3>VPN Segura</h3>
+                        <p>Conexión VPN cifrada con WireGuard para acceso remoto seguro y protección de la privacidad en línea.</p>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-chart-line"></i>
+                        </div>
+                        <h3>Monitoreo en Tiempo Real</h3>
+                        <p>Detección y análisis continuo de amenazas con alertas automáticas y métricas de seguridad detalladas.</p>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-fire"></i>
+                        </div>
+                        <h3>Firewall Inteligente</h3>
+                        <p>Protección avanzada con UFW que bloquea automáticamente IPs maliciosas y ataques de fuerza bruta.</p>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-tachometer-alt"></i>
+                        </div>
+                        <h3>Panel de Control</h3>
+                        <p>Interfaz web intuitiva para monitorear el estado del sistema, configurar módulos y visualizar estadísticas.</p>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-network-wired"></i>
+                        </div>
+                        <h3>Red Distribuida</h3>
+                        <p>Sistema Reticularium que conecta múltiples nodos para compartir inteligencia de amenazas en tiempo real.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <section id="installation" class="installation">
+            <div class="container">
+                <h2 class="section-title">🚀 Instalación Rápida</h2>
+                
+                <div class="install-steps">
+                    <div class="step">
+                        <div class="step-number">1</div>
+                        <h3>Clonar Repositorio</h3>
+                        <p>Descarga el código fuente desde GitHub</p>
+                    </div>
+                    
+                    <div class="step">
+                        <div class="step-number">2</div>
+                        <h3>Ejecutar Instalador</h3>
+                        <p>Instala todos los módulos automáticamente</p>
+                    </div>
+                    
+                    <div class="step">
+                        <div class="step-number">3</div>
+                        <h3>Configurar Nodo</h3>
+                        <p>Inicializa y configura tu nodo de defensa</p>
+                    </div>
+                </div>
+                
+                <div class="code-block">
+                    <pre># Clonar repositorio
+git clone https://github.com/jamosquea/bytefenseOS.git
+cd bytefenseOS
+
+# Ejecutar instalador
+sudo ./install.sh --all
+
+# Configurar nodo
+sudo bytefense-ctl init</pre>
+                </div>
+                
+                <p style="text-align: center; color: var(--text-muted); margin-top: 1rem;">
+                    <i class="fas fa-info-circle"></i> 
+                    La instalación toma aproximadamente 10-15 minutos dependiendo de tu conexión a internet.
+                </p>
+            </div>
+        </section>
+        
+        <section id="requirements" class="requirements">
+            <div class="container">
+                <h2 class="section-title">📋 Requisitos del Sistema</h2>
+                
+                <div class="req-grid">
+                    <div class="req-item">
+                        <strong>Sistema Operativo</strong><br>
+                        Ubuntu 20.04+ / Debian 11+ / Raspberry Pi OS
+                    </div>
+                    
+                    <div class="req-item">
+                        <strong>Memoria RAM</strong><br>
+                        Mínimo 2GB (Recomendado 4GB)
+                    </div>
+                    
+                    <div class="req-item">
+                        <strong>Almacenamiento</strong><br>
+                        8GB de espacio libre
+                    </div>
+                    
+                    <div class="req-item">
+                        <strong>Red</strong><br>
+                        Conexión a Internet estable
+                    </div>
+                </div>
+                
+                <div style="text-align: center; margin-top: 2rem;">
+                    <p style="color: var(--text-muted);">
+                        <i class="fas fa-raspberry-pi"></i> 
+                        Optimizado especialmente para Raspberry Pi 5 y servidores Linux
+                    </p>
+                </div>
+            </div>
+        </section>
+    </main>
+    
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-links">
+                <a href="https://github.com/jamosquea/bytefenseOS" target="_blank">
+                    <i class="fab fa-github"></i> GitHub
+                </a>
+                <a href="https://github.com/jamosquea/bytefenseOS/issues" target="_blank">
+                    <i class="fas fa-bug"></i> Reportar Bug
+                </a>
+                <a href="https://github.com/jamosquea/bytefenseOS/wiki" target="_blank">
+                    <i class="fas fa-book"></i> Documentación
+                </a>
+                <a href="https://github.com/jamosquea/bytefenseOS/releases" target="_blank">
+                    <i class="fas fa-download"></i> Releases
+                </a>
+            </div>
+            
+            <p style="color: var(--text-muted); margin-top: 1rem;">
+                © 2024 Bytefense OS. Licencia MIT. Hecho con ❤️ para la comunidad de ciberseguridad.
+            </p>
+        </div>
+    </footer>
+    
+    <script>
+        // Scroll progress indicator
+        window.addEventListener('scroll', () => {
+            const scrolled = (window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)) * 100;
+            document.getElementById('scrollProgress').style.width = scrolled + '%';
+        });
+        
+        // Smooth scrolling for navigation links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+        
+        // Add animation on scroll
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+        
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.opacity = '1';
+                    entry.target.style.transform = 'translateY(0)';
+                }
+            });
+        }, observerOptions);
+        
+        // Observe feature cards and steps
+        document.querySelectorAll('.feature-card, .step, .req-item').forEach(el => {
+            el.style.opacity = '0';
+            el.style.transform = 'translateY(20px)';
+            el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+            observer.observe(el);
+        });
+    </script>
+</body>
+</html>

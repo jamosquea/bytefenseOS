@@ -1,0 +1,260 @@
+#!/bin/bash
+# Bytefense OS - Sistema de Health Check Avanzado
+
+set -euo pipefail
+
+BYTEFENSE_HOME="/opt/bytefense"
+CONFIG_FILE="$BYTEFENSE_HOME/system/bytefense-config.json"
+HEALTH_LOG="$BYTEFENSE_HOME/logs/health.log"
+ALERT_THRESHOLD=80
+CRITICAL_THRESHOLD=95
+
+# Colores
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+# Función de logging
+log_health() {
+    local level="$1"
+    local message="$2"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    echo "[$timestamp] [$level] $message" | tee -a "$HEALTH_LOG"
+}
+
+# Verificar uso de CPU
+check_cpu() {
+    local cpu_usage=$(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | cut -d'%' -f1)
+    cpu_usage=${cpu_usage%.*}  # Remover decimales
+    
+    if [[ $cpu_usage -gt $CRITICAL_THRESHOLD ]]; then
+        echo -e "${RED}❌ CPU: ${cpu_usage}% (CRÍTICO)${NC}"
+        log_health "CRITICAL" "CPU usage: ${cpu_usage}%"
+        return 2
+    elif [[ $cpu_usage -gt $ALERT_THRESHOLD ]]; then
+        echo -e "${YELLOW}⚠️  CPU: ${cpu_usage}% (ALERTA)${NC}"
+        log_health "WARNING" "CPU usage: ${cpu_usage}%"
+        return 1
+    else
+        echo -e "${GREEN}✅ CPU: ${cpu_usage}% (OK)${NC}"
+        return 0
+    fi
+}
+
+# Verificar uso de memoria
+check_memory() {
+    local mem_info=$(free | grep Mem)
+    local total=$(echo $mem_info | awk '{print $2}')
+    local used=$(echo $mem_info | awk '{print $3}')
+    local mem_usage=$((used * 100 / total))
+    
+    if [[ $mem_usage -gt $CRITICAL_THRESHOLD ]]; then
+        echo -e "${RED}❌ RAM: ${mem_usage}% (CRÍTICO)${NC}"
+        log_health "CRITICAL" "Memory usage: ${mem_usage}%"
+        return 2
+    elif [[ $mem_usage -gt $ALERT_THRESHOLD ]]; then
+        echo -e "${YELLOW}⚠️  RAM: ${mem_usage}% (ALERTA)${NC}"
+        log_health "WARNING" "Memory usage: ${mem_usage}%"
+        return 1
+    else
+        echo -e "${GREEN}✅ RAM: ${mem_usage}% (OK)${NC}"
+        return 0
+    fi
+}
+
+# Verificar espacio en disco
+check_disk() {
+    local disk_usage=$(df / | awk 'NR==2 {print $5}' | cut -d'%' -f1)
+    
+    if [[ $disk_usage -gt $CRITICAL_THRESHOLD ]]; then
+        echo -e "${RED}❌ Disco: ${disk_usage}% (CRÍTICO)${NC}"
+        log_health "CRITICAL" "Disk usage: ${disk_usage}%"
+        return 2
+    elif [[ $disk_usage -gt $ALERT_THRESHOLD ]]; then
+        echo -e "${YELLOW}⚠️  Disco: ${disk_usage}% (ALERTA)${NC}"
+        log_health "WARNING" "Disk usage: ${disk_usage}%"
+        return 1
+    else
+        echo -e "${GREEN}✅ Disco: ${disk_usage}% (OK)${NC}"
+        return 0
+    fi
+}
+
+# Verificar servicios críticos
+check_services() {
+    local services=("bytefense-dashboard-secure" "bytefense-watch-secure" "ufw")
+    local failed_services=()
+    
+    for service in "${services[@]}"; do
+        if systemctl is-active --quiet "$service"; then
+            echo -e "${GREEN}✅ Servicio $service: ACTIVO${NC}"
+        else
+            echo -e "${RED}❌ Servicio $service: INACTIVO${NC}"
+            failed_services+=("$service")
+            log_health "CRITICAL" "Service $service is down"
+        fi
+    done
+    
+    if [[ ${#failed_services[@]} -gt 0 ]]; then
+        return 2
+    fi
+    return 0
+}
+
+# Verificar conectividad
+check_connectivity() {
+    local test_hosts=("8.8.8.8" "1.1.1.1" "google.com")
+    local failed_count=0
+    
+    for host in "${test_hosts[@]}"; do
+        if ! timeout 5 ping -c 1 "$host" &>/dev/null; then
+            ((failed_count++))
+        fi
+    done
+    
+    if [[ $failed_count -eq ${#test_hosts[@]} ]]; then
+        echo -e "${RED}❌ Conectividad: SIN INTERNET${NC}"
+        log_health "CRITICAL" "No internet connectivity"
+        return 2
+    elif [[ $failed_count -gt 0 ]]; then
+        echo -e "${YELLOW}⚠️  Conectividad: PARCIAL${NC}"
+        log_health "WARNING" "Partial internet connectivity"
+        return 1
+    else
+        echo -e "${GREEN}✅ Conectividad: OK${NC}"
+        return 0
+    fi
+}
+
+# Verificar base de datos
+check_database() {
+    local db_file="$BYTEFENSE_HOME/intel/threats.db"
+    
+    if [[ ! -f "$db_file" ]]; then
+        echo -e "${RED}❌ Base de datos: NO ENCONTRADA${NC}"
+        log_health "CRITICAL" "Database file not found"
+        return 2
+    fi
+    
+    # Verificar integridad
+    if sqlite3 "$db_file" "PRAGMA integrity_check;" | grep -q "ok"; then
+        local record_count=$(sqlite3 "$db_file" "SELECT COUNT(*) FROM blocked_ips;")
+        echo -e "${GREEN}✅ Base de datos: OK ($record_count registros)${NC}"
+        return 0
+    else
+        echo -e "${RED}❌ Base de datos: CORRUPTA${NC}"
+        log_health "CRITICAL" "Database integrity check failed"
+        return 2
+    fi
+}
+
+# Verificar logs
+check_logs() {
+    local log_dir="$BYTEFENSE_HOME/logs"
+    local max_size_mb=100
+    local issues=0
+    
+    if [[ ! -d "$log_dir" ]]; then
+        echo -e "${RED}❌ Logs: DIRECTORIO NO ENCONTRADO${NC}"
+        return 2
+    fi
+    
+    # Verificar tamaño de logs
+    while IFS= read -r -d '' logfile; do
+        local size_mb=$(du -m "$logfile" | cut -f1)
+        if [[ $size_mb -gt $max_size_mb ]]; then
+            echo -e "${YELLOW}⚠️  Log grande: $(basename "$logfile") (${size_mb}MB)${NC}"
+            ((issues++))
+        fi
+    done < <(find "$log_dir" -name "*.log" -print0)
+    
+    if [[ $issues -eq 0 ]]; then
+        echo -e "${GREEN}✅ Logs: OK${NC}"
+        return 0
+    else
+        log_health "WARNING" "$issues log files are oversized"
+        return 1
+    fi
+}
+
+# Verificar amenazas recientes
+check_recent_threats() {
+    local db_file="$BYTEFENSE_HOME/intel/threats.db"
+    local recent_blocks=$(sqlite3 "$db_file" "SELECT COUNT(*) FROM blocked_ips WHERE date >= datetime('now', '-1 hour');" 2>/dev/null || echo "0")
+    
+    if [[ $recent_blocks -gt 50 ]]; then
+        echo -e "${RED}❌ Amenazas: $recent_blocks bloqueos en la última hora (ALTO)${NC}"
+        log_health "CRITICAL" "High threat activity: $recent_blocks blocks in last hour"
+        return 2
+    elif [[ $recent_blocks -gt 10 ]]; then
+        echo -e "${YELLOW}⚠️  Amenazas: $recent_blocks bloqueos en la última hora (MEDIO)${NC}"
+        log_health "WARNING" "Moderate threat activity: $recent_blocks blocks in last hour"
+        return 1
+    else
+        echo -e "${GREEN}✅ Amenazas: $recent_blocks bloqueos en la última hora (NORMAL)${NC}"
+        return 0
+    fi
+}
+
+# Función principal
+main() {
+    echo -e "${BLUE}🛡️  Bytefense OS - Health Check Avanzado${NC}"
+    echo "================================================"
+    echo "Timestamp: $(date)"
+    echo ""
+    
+    local total_score=0
+    local max_score=0
+    
+    # Ejecutar todas las verificaciones
+    local checks=("check_cpu" "check_memory" "check_disk" "check_services" "check_connectivity" "check_database" "check_logs" "check_recent_threats")
+    
+    for check in "${checks[@]}"; do
+        $check
+        local result=$?
+        ((max_score += 2))
+        
+        case $result in
+            0) ((total_score += 2)) ;;  # OK
+            1) ((total_score += 1)) ;;  # Warning
+            2) ((total_score += 0)) ;;  # Critical
+        esac
+        
+        echo ""
+    done
+    
+    # Calcular puntuación final
+    local health_percentage=$((total_score * 100 / max_score))
+    
+    echo "================================================"
+    if [[ $health_percentage -ge 90 ]]; then
+        echo -e "${GREEN}🟢 Estado General: EXCELENTE (${health_percentage}%)${NC}"
+        log_health "INFO" "System health: EXCELLENT ($health_percentage%)"
+    elif [[ $health_percentage -ge 70 ]]; then
+        echo -e "${YELLOW}🟡 Estado General: BUENO (${health_percentage}%)${NC}"
+        log_health "WARNING" "System health: GOOD ($health_percentage%)"
+    elif [[ $health_percentage -ge 50 ]]; then
+        echo -e "${YELLOW}🟠 Estado General: REGULAR (${health_percentage}%)${NC}"
+        log_health "WARNING" "System health: FAIR ($health_percentage%)"
+    else
+        echo -e "${RED}🔴 Estado General: CRÍTICO (${health_percentage}%)${NC}"
+        log_health "CRITICAL" "System health: CRITICAL ($health_percentage%)"
+    fi
+    
+    echo "Puntuación: $total_score/$max_score"
+    echo "Log: $HEALTH_LOG"
+    
+    # Retornar código de salida basado en el estado
+    if [[ $health_percentage -ge 70 ]]; then
+        return 0
+    elif [[ $health_percentage -ge 50 ]]; then
+        return 1
+    else
+        return 2
+    fi
+}
+
+# Ejecutar health check
+main "$@"

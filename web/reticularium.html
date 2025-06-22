@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bytefense OS - Reticularium Grid</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.7.9/dat.gui.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #0a0a0a;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            overflow: hidden;
+        }
+        
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        #webgl-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        
+        #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 100;
+        }
+        
+        .hud {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid #00ff00;
+            padding: 10px;
+            font-size: 12px;
+            pointer-events: auto;
+        }
+        
+        .hud-top-left {
+            top: 20px;
+            left: 20px;
+            width: 300px;
+        }
+        
+        .hud-top-right {
+            top: 20px;
+            right: 20px;
+            width: 250px;
+        }
+        
+        .hud-bottom {
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            height: 150px;
+            overflow-y: auto;
+        }
+        
+        .node-info {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid #00ff00;
+        }
+        
+        .threat-alert {
+            color: #ff0000;
+            animation: blink 1s infinite;
+        }
+        
+        .connection-line {
+            stroke: #00ff00;
+            stroke-width: 1;
+            opacity: 0.6;
+        }
+        
+        .threat-line {
+            stroke: #ff0000;
+            stroke-width: 2;
+            opacity: 0.8;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0.3; }
+        }
+        
+        @keyframes pulse {
+            0% { stroke-width: 1; }
+            50% { stroke-width: 3; }
+            100% { stroke-width: 1; }
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .stat-item {
+            text-align: center;
+            padding: 5px;
+            border: 1px solid #333;
+        }
+        
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 18px;
+            z-index: 200;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="webgl-container"></div>
+        <div id="overlay">
+            <!-- HUD Superior Izquierdo - Info de Nodos -->
+            <div class="hud hud-top-left">
+                <h3>🛡️ BYTEFENSE GRID</h3>
+                <div id="grid-stats">
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div>NODOS</div>
+                            <div id="node-count">0</div>
+                        </div>
+                        <div class="stat-item">
+                            <div>AMENAZAS</div>
+                            <div id="threat-count">0</div>
+                        </div>
+                        <div class="stat-item">
+                            <div>CONEXIONES</div>
+                            <div id="connection-count">0</div>
+                        </div>
+                        <div class="stat-item">
+                            <div>TRÁFICO</div>
+                            <div id="traffic-rate">0 KB/s</div>
+                        </div>
+                    </div>
+                </div>
+                <div id="node-list"></div>
+            </div>
+            
+            <!-- HUD Superior Derecho - Controles -->
+            <div class="hud hud-top-right">
+                <h3>⚙️ CONTROLES</h3>
+                <div>
+                    <label><input type="checkbox" id="show-connections" checked> Conexiones</label><br>
+                    <label><input type="checkbox" id="show-threats" checked> Amenazas</label><br>
+                    <label><input type="checkbox" id="show-geo" checked> Geolocalización</label><br>
+                    <label><input type="checkbox" id="auto-rotate" checked> Auto-rotación</label><br>
+                </div>
+                <div style="margin-top: 10px;">
+                    <button onclick="resetView()">Reset Vista</button>
+                    <button onclick="toggleFullscreen()">Pantalla Completa</button>
+                </div>
+            </div>
+            
+            <!-- HUD Inferior - Log de Eventos -->
+            <div class="hud hud-bottom">
+                <h3>📊 LOG DE EVENTOS EN TIEMPO REAL</h3>
+                <div id="event-log"></div>
+            </div>
+        </div>
+        
+        <div id="loading" class="loading">Inicializando Reticularium Grid...</div>
+    </div>
+    
+    <script>
+        // Variables globales
+        let scene, camera, renderer, controls;
+        let nodes = new Map();
+        let connections = [];
+        let threats = [];
+        let globe;
+        let eventSource;
+        
+        // Configuración
+        const config = {
+            autoRotate: true,
+            showConnections: true,
+            showThreats: true,
+            showGeo: true,
+            nodeSize: 0.5,
+            connectionOpacity: 0.6
+        };
+        
+        // Inicialización
+        function init() {
+            initThreeJS();
+            createGlobe();
+            setupEventStream();
+            setupControls();
+            animate();
+            
+            document.getElementById('loading').style.display = 'none';
+        }
+        
+        // Configurar Three.js
+        function initThreeJS() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setClearColor(0x000000, 0.9);
+            document.getElementById('webgl-container').appendChild(renderer.domElement);
+            
+            // Luces
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(1, 1, 1);
+            scene.add(directionalLight);
+            
+            // Posición inicial de la cámara
+            camera.position.set(0, 0, 10);
+        }
+        
+        // Crear globo terráqueo
+        function createGlobe() {
+            const geometry = new THREE.SphereGeometry(3, 32, 32);
+            const material = new THREE.MeshPhongMaterial({
+                color: 0x003300,
+                transparent: true,
+                opacity: 0.3,
+                wireframe: true
+            });
+            
+            globe = new THREE.Mesh(geometry, material);
+            scene.add(globe);
+        }
+        
+        // Configurar stream de eventos
+        function setupEventStream() {
+            // Simular datos en tiempo real
+            setInterval(() => {
+                fetchNodeData();
+                fetchThreatData();
+                fetchEventData();
+            }, 2000);
+            
+            // Datos iniciales
+            loadInitialData();
+        }
+        
+        // Cargar datos iniciales
+        function loadInitialData() {
+            // Simular nodos iniciales
+            const initialNodes = [
+                { id: 'master-001', name: 'Master Node', lat: 40.7128, lng: -74.0060, type: 'master', status: 'online' },
+                { id: 'sat-001', name: 'Satellite NYC', lat: 40.7589, lng: -73.9851, type: 'satellite', status: 'online' },
+                { id: 'sat-002', name: 'Satellite LA', lat: 34.0522, lng: -118.2437, type: 'satellite', status: 'online' },
+                { id: 'sat-003', name: 'Satellite CHI', lat: 41.8781, lng: -87.6298, type: 'satellite', status: 'warning' }
+            ];
+            
+            initialNodes.forEach(nodeData => {
+                createNode(nodeData);
+            });
+            
+            updateStats();
+        }
+        
+        // Crear nodo 3D
+        function createNode(nodeData) {
+            const pos = latLngToVector3(nodeData.lat, nodeData.lng, 3.2);
+            
+            // Geometría del nodo
+            const geometry = new THREE.SphereGeometry(config.nodeSize, 8, 8);
+            let color = 0x00ff00; // Verde por defecto
+            
+            if (nodeData.type === 'master') color = 0x0080ff; // Azul para master
+            if (nodeData.status === 'warning') color = 0xffff00; // Amarillo para warning
+            if (nodeData.status === 'offline') color = 0xff0000; // Rojo para offline
+            
+            const material = new THREE.MeshPhongMaterial({ color: color });
+            const nodeMesh = new THREE.Mesh(geometry, material);
+            
+            nodeMesh.position.copy(pos);
+            nodeMesh.userData = nodeData;
+            
+            // Añadir glow effect
+            const glowGeometry = new THREE.SphereGeometry(config.nodeSize * 1.5, 8, 8);
+            const glowMaterial = new THREE.MeshBasicMaterial({
+                color: color,
+                transparent: true,
+                opacity: 0.3
+            });
+            const glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
+            glowMesh.position.copy(pos);
+            
+            scene.add(nodeMesh);
+            scene.add(glowMesh);
+            
+            nodes.set(nodeData.id, { mesh: nodeMesh, glow: glowMesh, data: nodeData });
+            
+            // Crear conexiones si es satélite
+            if (nodeData.type === 'satellite') {
+                createConnection('master-001', nodeData.id);
+            }
+        }
+        
+        // Crear conexión entre nodos
+        function createConnection(fromId, toId) {
+            const fromNode = nodes.get(fromId);
+            const toNode = nodes.get(toId);
+            
+            if (!fromNode || !toNode) return;
+            
+            const points = [];
+            points.push(fromNode.mesh.position);
+            points.push(toNode.mesh.position);
+            
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            const material = new THREE.LineBasicMaterial({
+                color: 0x00ff00,
+                transparent: true,
+                opacity: config.connectionOpacity
+            });
+            
+            const line = new THREE.Line(geometry, material);
+            scene.add(line);
+            
+            connections.push({ line, from: fromId, to: toId });
+        }
+        
+        // Convertir lat/lng a posición 3D
+        function latLngToVector3(lat, lng, radius) {
+            const phi = (90 - lat) * (Math.PI / 180);
+            const theta = (lng + 180) * (Math.PI / 180);
+            
+            const x = -(radius * Math.sin(phi) * Math.cos(theta));
+            const z = (radius * Math.sin(phi) * Math.sin(theta));
+            const y = (radius * Math.cos(phi));
+            
+            return new THREE.Vector3(x, y, z);
+        }
+        
+        // Obtener datos de nodos
+        async function fetchNodeData() {
+            try {
+                const response = await fetch('/api/nodes');
+                const data = await response.json();
+                
+                // Actualizar nodos existentes
+                data.nodes.forEach(nodeData => {
+                    if (nodes.has(nodeData.id)) {
+                        updateNode(nodeData);
+                    } else {
+                        createNode(nodeData);
+                    }
+                });
+                
+                updateNodeList(data.nodes);
+            } catch (error) {
+                console.error('Error fetching node data:', error);
+            }
+        }
+        
+        // Obtener datos de amenazas
+        async function fetchThreatData() {
+            try {
+                const response = await fetch('/api/threats/realtime');
+                const data = await response.json();
+                
+                data.threats.forEach(threat => {
+                    createThreatVisualization(threat);
+                });
+                
+                updateStats();
+            } catch (error) {
+                console.error('Error fetching threat data:', error);
+            }
+        }
+        
+        // Obtener eventos
+        async function fetchEventData() {
+            try {
+                const response = await fetch('/api/events/recent');
+                const data = await response.json();
+                
+                data.events.forEach(event => {
+                    addEventToLog(event);
+                });
+            } catch (error) {
+                console.error('Error fetching event data:', error);
+            }
+        }
+        
+        // Crear visualización de amenaza
+        function createThreatVisualization(threat) {
+            if (!threat.source_lat || !threat.source_lng) return;
+            
+            const sourcePos = latLngToVector3(threat.source_lat, threat.source_lng, 3.5);
+            const targetNode = Array.from(nodes.values()).find(n => n.data.type === 'master');
+            
+            if (!targetNode) return;
+            
+            // Crear línea de amenaza
+            const points = [sourcePos, targetNode.mesh.position];
+            const geometry = new THREE.BufferGeometry().setFromPoints(points);
+            const material = new THREE.LineBasicMaterial({
+                color: 0xff0000,
+                transparent: true,
+                opacity: 0.8
+            });
+            
+            const line = new THREE.Line(geometry, material);
+            scene.add(line);
+            
+            // Animar y remover después de 5 segundos
+            setTimeout(() => {
+                scene.remove(line);
+            }, 5000);
+            
+            // Crear partícula de amenaza
+            const particleGeometry = new THREE.SphereGeometry(0.1, 4, 4);
+            const particleMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            const particle = new THREE.Mesh(particleGeometry, particleMaterial);
+            
+            particle.position.copy(sourcePos);
+            scene.add(particle);
+            
+            // Animar partícula hacia el objetivo
+            const startTime = Date.now();
+            const duration = 3000;
+            
+            function animateParticle() {
+                const elapsed = Date.now() - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                
+                particle.position.lerpVectors(sourcePos, targetNode.mesh.position, progress);
+                
+                if (progress < 1) {
+                    requestAnimationFrame(animateParticle);
+                } else {
+                    scene.remove(particle);
+                }
+            }
+            
+            animateParticle();
+        }
+        
+        // Actualizar estadísticas
+        function updateStats() {
+            document.getElementById('node-count').textContent = nodes.size;
+            document.getElementById('connection-count').textContent = connections.length;
+            document.getElementById('threat-count').textContent = Math.floor(Math.random() * 50);
+            document.getElementById('traffic-rate').textContent = (Math.random() * 1000).toFixed(1) + ' KB/s';
+        }
+        
+        // Actualizar lista de nodos
+        function updateNodeList(nodeData) {
+            const nodeList = document.getElementById('node-list');
+            nodeList.innerHTML = '';
+            
+            nodeData.forEach(node => {
+                const nodeDiv = document.createElement('div');
+                nodeDiv.className = 'node-info';
+                nodeDiv.innerHTML = `
+                    <strong>${node.name}</strong><br>
+                    <small>Status: ${node.status}</small><br>
+                    <small>Type: ${node.type}</small>
+                `;
+                nodeList.appendChild(nodeDiv);
+            });
+        }
+        
+        // Añadir evento al log
+        function addEventToLog(event) {
+            const eventLog = document.getElementById('event-log');
+            const eventDiv = document.createElement('div');
+            
+            const timestamp = new Date(event.timestamp).toLocaleTimeString();
+            const className = event.type === 'threat' ? 'threat-alert' : '';
+            
+            eventDiv.className = className;
+            eventDiv.innerHTML = `[${timestamp}] ${event.type.toUpperCase()}: ${event.message}`;
+            
+            eventLog.insertBefore(eventDiv, eventLog.firstChild);
+            
+            // Mantener solo los últimos 20 eventos
+            while (eventLog.children.length > 20) {
+                eventLog.removeChild(eventLog.lastChild);
+            }
+        }
+        
+        // Configurar controles
+        function setupControls() {
+            document.getElementById('show-connections').addEventListener('change', (e) => {
+                config.showConnections = e.target.checked;
+                connections.forEach(conn => {
+                    conn.line.visible = config.showConnections;
+                });
+            });
+            
+            document.getElementById('auto-rotate').addEventListener('change', (e) => {
+                config.autoRotate = e.target.checked;
+            });
+        }
+        
+        // Loop de animación
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            if (config.autoRotate && globe) {
+                globe.rotation.y += 0.005;
+            }
+            
+            // Animar nodos
+            nodes.forEach(node => {
+                if (node.glow) {
+                    node.glow.scale.setScalar(1 + Math.sin(Date.now() * 0.003) * 0.1);
+                }
+            });
+            
+            renderer.render(scene, camera);
+        }
+        
+        // Funciones de utilidad
+        function resetView() {
+            camera.position.set(0, 0, 10);
+            camera.lookAt(0, 0, 0);
+        }
+        
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else {
+                document.exitFullscreen();
+            }
+        }
+        
+        // Manejo de redimensionamiento
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        // Inicializar cuando se carga la página
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>

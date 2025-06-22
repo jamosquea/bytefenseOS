@@ -1,0 +1,13 @@
+bytefense-os (1.0.0) stable; urgency=low
+
+  * Initial release of Bytefense OS
+  * Integrated Pi-hole for DNS filtering
+  * WireGuard VPN support
+  * Real-time threat monitoring
+  * Web dashboard interface
+  * UFW firewall integration
+  * SQLite threat intelligence database
+  * Node cloning capabilities
+  * Master/satellite architecture support
+
+ -- Bytefense Team <admin@bytefense.org>  Mon, 15 Jan 2024 10:00:00 +0000

@@ -1,0 +1,33 @@
+#!/bin/bash
+# Bytefense OS - Script de Pre-instalación
+
+set -e
+
+echo "🛡️ Preparando instalación de Bytefense OS..."
+
+# Verificar que se ejecuta como root
+if [ "$EUID" -ne 0 ]; then
+    echo "❌ Este paquete debe instalarse como root"
+    exit 1
+fi
+
+# Verificar sistema compatible
+if [ ! -f /etc/debian_version ] && [ ! -f /etc/lsb-release ]; then
+    echo "❌ Sistema no compatible. Requiere Debian/Ubuntu"
+    exit 1
+fi
+
+# Verificar arquitectura
+ARCH=$(dpkg --print-architecture)
+if [ "$ARCH" != "amd64" ] && [ "$ARCH" != "arm64" ] && [ "$ARCH" != "armhf" ]; then
+    echo "⚠️ Arquitectura $ARCH puede no ser completamente compatible"
+fi
+
+# Crear usuario del sistema si no existe
+if ! id "bytefense" &>/dev/null; then
+    echo "👤 Creando usuario del sistema bytefense..."
+    useradd -r -s /bin/bash -d /opt/bytefense -c "Bytefense OS System User" bytefense
+fi
+
+echo "✅ Pre-instalación completada"
+exit 0

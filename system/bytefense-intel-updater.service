@@ -1,0 +1,11 @@
+[Unit]
+Description=Bytefense OS Threat Intelligence Updater
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/opt/bytefense/bin/bytefense-intel-updater
+Time

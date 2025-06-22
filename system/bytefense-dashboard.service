@@ -1,0 +1,16 @@
+[Unit]
+Description=Bytefense OS Dashboard
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=bytefense
+WorkingDirectory=/opt/bytefense
+ExecStart=/usr/bin/python3 /opt/bytefense/bin/bytefense-api.py
+Restart=always
+RestartSec=10
+Environment=PYTHONPATH=/opt/bytefense
+
+[Install]
+WantedBy=multi-user.target

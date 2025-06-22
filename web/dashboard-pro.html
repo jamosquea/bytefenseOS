@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bytefense OS - Dashboard Pro</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/date-fns@2.29.3/index.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #00ff00;
+            --secondary-color: #0080ff;
+            --danger-color: #ff4444;
+            --warning-color: #ffaa00;
+            --success-color: #00ff88;
+            --bg-dark: #000000;
+            --bg-card: rgba(0, 0, 0, 0.9);
+            --text-primary: #ffffff;
+            --text-secondary: #cccccc;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Courier New', monospace;
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            overflow-x: hidden;
+        }
+        
+        .matrix-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            opacity: 0.05;
+        }
+        
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            border: 2px solid var(--primary-color);
+            padding: 20px;
+            background: var(--bg-card);
+            border-radius: 10px;
+            position: relative;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 0 0 20px var(--primary-color);
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+        
+        @keyframes glow {
+            from { text-shadow: 0 0 20px var(--primary-color); }
+            to { text-shadow: 0 0 30px var(--primary-color), 0 0 40px var(--primary-color); }
+        }
+        
+        .status-indicator {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--success-color);
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(0, 255, 136, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(0, 255, 136, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(0, 255, 136, 0); }
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            border: 1px solid var(--primary-color);
+            padding: 20px;
+            background: var(--bg-card);
+            border-radius: 10px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .stat-card:hover {
+            box-shadow: 0 0 25px var(--primary-color);
+            transform: translateY(-5px);
+        }
+        
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(0, 255, 0, 0.1), transparent);
+            transition: left 0.5s;
+        }
+        
+        .stat-card:hover::before {
+            left: 100%;
+        }
+        
+        .stat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .stat-title {
+            color: var(--primary-color);
+            font-size: 0.9em;
+            font-weight: bold;
+        }
+        
+        .stat-icon {
+            font-size: 1.5em;
+        }
+        
+        .stat-value {
+            font-size: 2.2em;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .stat-change {
+            font-size: 0.8em;
+            opacity: 0.8;
+        }
+        
+        .positive { color: var(--success-color); }
+        .negative { color: var(--danger-color); }
+        .neutral { color: var(--warning-color); }
+        
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+        
+        .chart-container {
+            border: 1px solid var(--primary-color);
+            padding: 25px;
+            background: var(--bg-card);
+            border-radius: 10px;
+            position: relative;
+        }
+        
+        .chart-title {
+            color: var(--primary-color);
+            margin-bottom: 20px;
+            font-size: 1.2em;
+            text-align: center;
+        }
+        
+        .threat-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .threat-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            border-bottom: 1px solid rgba(0, 255, 0, 0.2);
+            transition: background 0.3s;
+        }
+        
+        .threat-item:hover {
+            background: rgba(0, 255, 0, 0.1);
+        }
+        
+        .threat-ip {
+            font-family: monospace;
+            color: var(--danger-color);
+        }
+        
+        .threat-reason {
+            color: var(--text-secondary);
+            font-size: 0.9em;
+        }
+        
+        .threat-time {
+            color: var(--warning-color);
+            font-size: 0.8em;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: 1px solid var(--primary-color);
+            background: transparent;
+            color: var(--primary-color);
+            cursor: pointer;
+            border-radius: 5px;
+            transition: all 0.3s;
+            font-family: inherit;
+        }
+        
+        .btn:hover {
+            background: var(--primary-color);
+            color: var(--bg-dark);
+            box-shadow: 0 0 15px var(--primary-color);
+        }
+        
+        .btn.active {
+            background: var(--primary-color);
+            color: var(--bg-dark);
+        }
+        
+        .alert {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid;
+        }
+        
+        .alert.success {
+            background: rgba(0, 255, 136, 0.1);
+            border-color: var(--success-color);
+            color: var(--success-color);
+        }
+        
+        .alert.warning {
+            background: rgba(255, 170, 0, 0.1);
+            border-color: var(--warning-color);
+            color: var(--warning-color);
+        }
+        
+        .alert.danger {
+            background: rgba(255, 68, 68, 0.1);
+            border-color: var(--danger-color);
+            color: var(--danger-color);
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding: 20px;
+            border-top: 1px solid var(--primary-color);
+            color: var(--text-secondary);
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .controls {
+                justify-content: center;
+            }
+        }
+        
+        /* Scrollbar personalizado */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: var(--bg-dark);
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: var(--primary-color);
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--secondary-color);
+        }
+    </style>
+</head>
+<body>
+    <canvas class="matrix-bg" id="matrixCanvas"></canvas>
+    
+    <div class="container">
+        <div class="header">
+            <div class="status-indicator" id="statusIndicator"></div>
+            <h1>🛡️ BYTEFENSE OS</h1>
+            <p>Sistema de Defensa Digital Distribuida - Dashboard Pro</p>
+            <p id="lastUpdate">Última actualización: --</p>
+        </div>
+        
+        <div class="controls">
+            <button class="btn active" onclick="setRefreshInterval(5)">5s</button>
+            <button class="btn" onclick="setRefreshInterval(10)">10s</button>
+            <button class="btn" onclick="setRefreshInterval(30)">30s</button>
+            <button class="btn" onclick="setRefreshInterval(60)">1m</button>
+            <button class="btn" onclick="toggleAutoRefresh()">⏸️ Pausar</button>
+            <button class="btn" onclick="exportData()">📊 Exportar</button>
+        </div>
+        
+        <div id="alerts"></div>
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-header">
+                    <span class="stat-title">IPs BLOQUEADAS</span>
+                    <span class="stat-icon">🚫</span>
+                </div>
+                <div class="stat-value" id="blockedIPs">--</div>
+                <div class="stat-change" id="blockedIPsChange">--</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-header">
+                    <span class="stat-title">AMENAZAS DETECTADAS</span>
+                    <span class="stat-icon">⚠️</span>
+                </div>
+                <div class="stat-value" id="threatsDetected">--</div>
+                <div class="stat-change" id="threatsChange">--</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-header">
+                    <span class="stat-title">ESTADO DEL SISTEMA</span>
+                    <span class="stat-icon">💚</span>
+                </div>
+                <div class="stat-value" id="systemHealth">--</div>
+                <div class="stat-change" id="healthChange">--</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-header">
+                    <span class="stat-title">NODOS ACTIVOS</span>
+                    <span class="stat-icon">🌐</span>
+                </div>
+                <div class="stat-value" id="activeNodes">--</div>
+                <div class="stat-change" id="nodesChange">--</div>
+            </div>
+        </div>
+        
+        <div class="charts-grid">
+            <div class="chart-container">
+                <h3 class="chart-title">📈 Amenazas por Hora (24h)</h3>
+                <canvas id="threatsChart"></canvas>
+            </div>
+            
+            <div class="chart-container">
+                <h3 class="chart-title">🌍 Amenazas por País</h3>
+                <canvas id="geoChart"></canvas>
+            </div>
+            
+            <div class="chart-container">
+                <h3 class="chart-title">📊 Uso de Recursos</h3>
+                <canvas id="resourcesChart"></canvas>
+            </div>
+            
+            <div class="chart-container">
+                <h3 class="chart-title">🚨 Amenazas Recientes</h3>
+                <div class="threat-list" id="recentThreats">
+                    <div class="threat-item">
+                        <span class="threat-ip">Cargando...</span>
+                        <span class="threat-reason">--</span>
+                        <span class="threat-time">--</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>Bytefense OS v2.0.0 - Sistema de Defensa Digital Distribuida</p>
+            <p>© 2024 Bytefense Project - Protegiendo tu infraestructura digital</p>
+        </div>
+    </div>
+    
+    <script>
+        // Variables globales
+        let refreshInterval = 5000;
+        let autoRefresh = true;
+        let charts = {};
+        let previousData = {};
+        
+        // Inicializar dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeCharts();
+            startMatrixEffect();
+            loadData();
+            startAutoRefresh();
+        });
+        
+        // Efecto Matrix de fondo
+        function startMatrixEffect() {
+            const canvas = document.getElementById('matrixCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            
+            const chars = '01';
+            const charArray = chars.split('');
+            const fontSize = 14;
+            const columns = canvas.width / fontSize;
+            const drops = [];
+            
+            for (let x = 0; x < columns; x++) {
+                drops[x] = 1;
+            }
+            
+            function draw() {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                ctx.fillStyle = '#00ff00';
+                ctx.font = fontSize + 'px monospace';
+                
+                for (let i = 0; i < drops.length; i++) {
+                    const text = charArray[Math.floor(Math.random() * charArray.length)];
+                    ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+                    
+                    if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+                        drops[i] = 0;
+                    }
+                    drops[i]++;
+                }
+            }
+            
+            setInterval(draw, 35);
+        }
+        
+        // Inicializar gráficos
+        function initializeCharts() {
+            // Gráfico de amenazas por hora
+            const threatsCtx = document.getElementById('threatsChart').getContext('2d');
+            charts.threats = new Chart(threatsCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Amenazas Detectadas',
+                        data: [],
+                        borderColor: '#00ff00',
+                        backgroundColor: 'rgba(0, 255, 0, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            labels: { color: '#ffffff' }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#ffffff' },
+                            grid: { color: 'rgba(0, 255, 0, 0.2)' }
+                        },
+                        y: {
+                            ticks: { color: '#ffffff' },
+                            grid: { color: 'rgba(0, 255, 0, 0.2)' }
+                        }
+                    }
+                }
+            });
+            
+            // Gráfico de recursos
+            const resourcesCtx = document.getElementById('resourcesChart').getContext('2d');
+            charts.resources = new Chart(resourcesCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['CPU', 'RAM', 'Disco'],
+                    datasets: [{
+                        data: [0, 0, 0],
+                        backgroundColor: ['#ff4444', '#ffaa00', '#00ff88'],
+                        borderColor: '#000000',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            labels: { color: '#ffffff' }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Cargar datos del servidor
+        async function loadData() {
+            try {
+                const [statusResponse, threatsResponse, healthResponse] = await Promise.all([
+                    fetch('/api/status'),
+                    fetch('/api/threats'),
+                    fetch('/api/health')
+                ]);
+                
+                const statusData = await statusResponse.json();
+                const threatsData = await threatsResponse.json();
+                const healthData = await healthResponse.json();
+                
+                updateStats(statusData, threatsData, healthData);
+                updateCharts(threatsData, healthData);
+                updateRecentThreats(threatsData.recent || []);
+                updateSystemStatus(healthData);
+                
+                document.getElementById('lastUpdate').textContent = 
+                    `Última actualización: ${new Date().toLocaleTimeString()}`;
+                    
+            } catch (error) {
+                console.error('Error cargando datos:', error);
+                showAlert('Error de conexión con el servidor', 'danger');
+            }
+        }
+        
+        // Actualizar estadísticas
+        function updateStats(status, threats, health) {
+            const blockedIPs = threats.total_blocked || 0;
+            const threatsDetected = threats.total_threats || 0;
+            const systemHealth = health.health_percentage || 0;
+            const activeNodes = status.active_nodes || 1;
+            
+            // Calcular cambios
+            const blockedChange = calculateChange('blockedIPs', blockedIPs);
+            const threatsChange = calculateChange('threatsDetected', threatsDetected);
+            const healthChange = calculateChange('systemHealth', systemHealth);
+            const nodesChange = calculateChange('activeNodes', activeNodes);
+            
+            // Actualizar elementos
+            document.getElementById('blockedIPs').textContent = blockedIPs.toLocaleString();
+            document.getElementById('threatsDetected').textContent = threatsDetected.toLocaleString();
+            document.getElementById('systemHealth').textContent = systemHealth + '%';
+            document.getElementById('activeNodes').textContent = activeNodes;
+            
+            // Actualizar cambios
+            updateChangeIndicator('blockedIPsChange', blockedChange);
+            updateChangeIndicator('threatsChange', threatsChange);
+            updateChangeIndicator('healthChange', healthChange);
+            updateChangeIndicator('nodesChange', nodesChange);
+        }
+        
+        // Calcular cambio porcentual
+        function calculateChange(key, currentValue) {
+            if (!previousData[key]) {
+                previousData[key] = currentValue;
+                return 0;
+            }
+            
+            const change = currentValue - previousData[key];
+            previousData[key] = currentValue;
+            return change;
+        }
+        
+        // Actualizar indicador de cambio
+        function updateChangeIndicator(elementId, change) {
+            const element = document.getElementById(elementId);
+            if (change > 0) {
+                element.textContent = `+${change}`;
+                element.className = 'stat-change positive';
+            } else if (change < 0) {
+                element.textContent = change.toString();
+                element.className = 'stat-change negative';
+            } else {
+                element.textContent = 'Sin cambios';
+                element.className = 'stat-change neutral';
+            }
+        }
+        
+        // Actualizar gráficos
+        function updateCharts(threatsData, healthData) {
+            // Actualizar gráfico de amenazas
+            if (threatsData.hours && threatsData.counts) {
+                charts.threats.data.labels = threatsData.hours;
+                charts.threats.data.datasets[0].data = threatsData.counts;
+                charts.threats.update();
+            }
+            
+            // Actualizar gráfico de recursos
+            if (healthData.resources) {
+                charts.resources.data.datasets[0].data = [
+                    healthData.resources.cpu || 0,
+                    healthData.resources.memory || 0,
+                    healthData.resources.disk || 0
+                ];
+                charts.resources.update();
+            }
+        }
+        
+        // Actualizar amenazas recientes
+        function updateRecentThreats(threats) {
+            const container = document.getElementById('recentThreats');
+            container.innerHTML = '';
+            
+            if (threats.length === 0) {
+                container.innerHTML = '<div class="threat-item"><span>No hay amenazas recientes</span></div>';
+                return;
+            }
+            
+            threats.slice(0, 10).forEach(threat => {
+                const item = document.createElement('div');
+                item.className = 'threat-item';
+                item.innerHTML = `
+                    <span class="threat-ip">${threat.ip}</span>
+                    <span class="threat-reason">${threat.reason}</span>
+                    <span class="threat-time">${formatTime(threat.date)}</span>
+                `;
+                container.appendChild(item);
+            });
+        }
+        
+        // Actualizar estado del sistema
+        function updateSystemStatus(health) {
+            const indicator = document.getElementById('statusIndicator');
+            const healthPercentage = health.health_percentage || 0;
+            
+            if (healthPercentage >= 90) {
+                indicator.style.background = '#00ff88';
+                showAlert('Sistema funcionando óptimamente', 'success');
+            } else if (healthPercentage >= 70) {
+                indicator.style.background = '#ffaa00';
+                showAlert('Sistema funcionando con advertencias', 'warning');
+            } else {
+                indicator.style.background = '#ff4444';
+                showAlert('Sistema requiere atención inmediata', 'danger');
+            }
+        }
+        
+        // Mostrar alerta
+        function showAlert(message, type) {
+            const alertsContainer = document.getElementById('alerts');
+            const alert = document.createElement('div');
+            alert.className = `alert ${type}`;
+            alert.textContent = message;
+            
+            alertsContainer.appendChild(alert);
+            
+            // Remover alerta después de 5 segundos
+            setTimeout(() => {
+                if (alert.parentNode) {
+                    alert.parentNode.removeChild(alert);
+                }
+            }, 5000);
+        }
+        
+        // Formatear tiempo
+        function formatTime(dateString) {
+            const date = new Date(dateString);
+            const now = new Date();
+            const diff = now - date;
+            
+            if (diff < 60000) return 'Hace un momento';
+            if (diff < 3600000) return `Hace ${Math.floor(diff / 60000)} min`;
+            if (diff < 86400000) return `Hace ${Math.floor(diff / 3600000)} h`;
+            return date.toLocaleDateString();
+        }
+        
+        // Controles de actualización
+        function setRefreshInterval(seconds) {
+            refreshInterval = seconds * 1000;
+            document.querySelectorAll('.controls .btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            if (autoRefresh) {
+                stopAutoRefresh();
+                startAutoRefresh();
+            }
+        }
+        
+        function toggleAutoRefresh() {
+            autoRefresh = !autoRefresh;
+            const btn = event.target;
+            
+            if (autoRefresh) {
+                btn.textContent = '⏸️ Pausar';
+                startAutoRefresh();
+            } else {
+                btn.textContent = '▶️ Reanudar';
+                stopAutoRefresh();
+            }
+        }
+        
+        function startAutoRefresh() {
+            if (window.refreshTimer) clearInterval(window.refreshTimer);
+            window.refreshTimer = setInterval(loadData, refreshInterval);
+        }
+        
+        function stopAutoRefresh() {
+            if (window.refreshTimer) {
+                clearInterval(window.refreshTimer);
+                window.refreshTimer = null;
+            }
+        }
+        
+        // Exportar datos
+        function exportData() {
+            const data = {
+                timestamp: new Date().toISOString(),
+                stats: {
+                    blockedIPs: document.getElementById('blockedIPs').textContent,
+                    threatsDetected: document.getElementById('threatsDetected').textContent,
+                    systemHealth: document.getElementById('systemHealth').textContent,
+                    activeNodes: document.getElementById('activeNodes').textContent
+                },
+                charts: {
+                    threats: charts.threats.data,
+                    resources: charts.resources.data
+                }
+            };
+            
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `bytefense-report-${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        
+        // Responsive
+        window.addEventListener('resize', function() {
+            const canvas = document.getElementById('matrixCanvas');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+    </script>
+</body>
+</html>
