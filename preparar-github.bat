@@ -49,7 +49,7 @@ echo    git commit -m "Initial commit: Bytefense OS complete system"
 echo    git push -u origin main
 echo.
 echo ⚠️  Recuerda configurar tu usuario Git si no lo has hecho:
-echo    git config --global user.name "jamosquea"
-echo    git config --global user.email "shello_1@hotmail.com"
+echo    git config --global user.name jamosquea
+echo    git config --global user.email shello_1@hotmail.com
 echo.
 pause

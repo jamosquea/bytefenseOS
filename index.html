@@ -3,9 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bytefense OS - Dashboard</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <title>Bytefense OS - Sistema de Defensa Digital Distribuida</title>
+    <meta name="description" content="Sistema de defensa digital distribuida para proteger redes domésticas y empresariales con filtrado DNS, VPN segura y monitoreo en tiempo real.">
+    <meta name="keywords" content="cybersecurity, firewall, VPN, DNS filtering, network security, Pi-hole, WireGuard">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://jamosquea.github.io/bytefenseOS/">
+    <meta property="og:title" content="Bytefense OS - Sistema de Defensa Digital Distribuida">
+    <meta property="og:description" content="Protege tu red con Bytefense OS: filtrado DNS, VPN segura, monitoreo de amenazas y firewall inteligente.">
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://jamosquea.github.io/bytefenseOS/">
+    <meta property="twitter:title" content="Bytefense OS - Sistema de Defensa Digital Distribuida">
+    <meta property="twitter:description" content="Protege tu red con Bytefense OS: filtrado DNS, VPN segura, monitoreo de amenazas y firewall inteligente.">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
+        :root {
+            --primary-color: #00ff00;
+            --secondary-color: #0066cc;
+            --accent-color: #ff6600;
+            --bg-dark: #0a0a0a;
+            --bg-card: #1a1a1a;
+            --text-light: #ffffff;
+            --text-muted: #cccccc;
+            --border-color: #333333;
+        }
+        
         * {
             margin: 0;
             padding: 0;
@@ -13,11 +39,11 @@
         }
         
         body {
-            font-family: 'Courier New', monospace;
-            background: #000;
-            color: #00ff00;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-light);
+            line-height: 1.6;
             overflow-x: hidden;
-            position: relative;
         }
         
         .matrix-bg {
@@ -27,878 +53,590 @@
             width: 100%;
             height: 100%;
             z-index: -1;
-            opacity: 0.1;
+            opacity: 0.05;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90" fill="%2300ff00">01</text></svg>') repeat;
+            animation: matrix-scroll 20s linear infinite;
+        }
+        
+        @keyframes matrix-scroll {
+            0% { transform: translateY(0); }
+            100% { transform: translateY(-100px); }
         }
         
         .container {
-            max-width: 1400px;
+            max-width: 1200px;
             margin: 0 auto;
-            padding: 20px;
-            position: relative;
-            z-index: 1;
+            padding: 0 20px;
         }
         
+        /* Header */
         .header {
-            text-align: center;
-            margin-bottom: 30px;
-            border: 2px solid #00ff00;
-            padding: 20px;
-            background: rgba(0, 0, 0, 0.9);
-            border-radius: 5px;
+            background: rgba(26, 26, 26, 0.95);
+            backdrop-filter: blur(10px);
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            border-bottom: 2px solid var(--primary-color);
         }
         
-        .header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
-            text-shadow: 0 0 10px #00ff00;
-        }
-        
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-bottom: 30px;
-        }
-        
-        .stat-card {
-            border: 1px solid #00ff00;
-            padding: 15px;
-            background: rgba(0, 0, 0, 0.9);
-            text-align: center;
-            border-radius: 5px;
-            transition: all 0.3s;
-        }
-        
-        .stat-card:hover {
-            box-shadow: 0 0 15px #00ff00;
-            transform: translateY(-2px);
-        }
-        
-        .stat-card h3 {
-            color: #00ff00;
-            margin-bottom: 10px;
-            font-size: 0.9em;
-        }
-        
-        .stat-value {
-            font-size: 1.8em;
-            font-weight: bold;
-            color: #ffffff;
-        }
-        
-        .charts-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-        
-        .chart-container {
-            border: 1px solid #00ff00;
-            padding: 20px;
-            background: rgba(0, 0, 0, 0.9);
-            border-radius: 5px;
-        }
-        
-        .chart-title {
-            color: #00ff00;
-            margin-bottom: 15px;
-            font-size: 1.2em;
-            text-align: center;
-        }
-        
-        .chart-canvas {
-            max-height: 300px;
-        }
-        
-        .logs-section {
-            margin-bottom: 30px;
-        }
-        
-        .section-title {
-            font-size: 1.5em;
-            margin-bottom: 15px;
-            color: #00ff00;
-            border-bottom: 1px solid #00ff00;
-            padding-bottom: 5px;
-        }
-        
-        .logs-container {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-        }
-        
-        .log-panel {
-            border: 1px solid #00ff00;
-            padding: 15px;
-            background: rgba(0, 0, 0, 0.9);
-            border-radius: 5px;
-            max-height: 400px;
-            overflow-y: auto;
-        }
-        
-        .log-entry {
-            padding: 8px;
-            margin-bottom: 5px;
-            border-left: 3px solid #00ff00;
-            background: rgba(0, 255, 0, 0.05);
-            font-size: 0.85em;
-            line-height: 1.4;
-        }
-        
-        .log-entry.warning {
-            border-left-color: #ffaa00;
-            background: rgba(255, 170, 0, 0.05);
-        }
-        
-        .log-entry.error {
-            border-left-color: #ff0000;
-            background: rgba(255, 0, 0, 0.05);
-        }
-        
-        .log-time {
-            color: #888;
-            font-size: 0.8em;
-        }
-        
-        .nodes-section {
-            margin-bottom: 30px;
-        }
-        
-        .nodes-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 15px;
-        }
-        
-        .node-card {
-            border: 1px solid #00ff00;
-            padding: 15px;
-            background: rgba(0, 0, 0, 0.9);
-            border-radius: 5px;
-            transition: all 0.3s;
-        }
-        
-        .node-card:hover {
-            box-shadow: 0 0 10px #00ff00;
-        }
-        
-        .node-card.online {
-            border-color: #00ff00;
-        }
-        
-        .node-card.offline {
-            border-color: #ff0000;
-            color: #ff0000;
-        }
-        
-        .node-header {
+        .nav {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 10px;
+            padding: 1rem 0;
         }
         
-        .node-name {
+        .logo {
+            font-size: 1.8rem;
             font-weight: bold;
-            font-size: 1.1em;
-        }
-        
-        .node-status {
-            padding: 2px 8px;
-            border-radius: 3px;
-            font-size: 0.8em;
-        }
-        
-        .status-online {
-            background: #00ff00;
-            color: #000;
-        }
-        
-        .status-offline {
-            background: #ff0000;
-            color: #fff;
-        }
-        
-        .node-info {
-            font-size: 0.85em;
-            line-height: 1.4;
-        }
-        
-        .quick-links {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-top: 30px;
-        }
-        
-        .link-card {
-            border: 1px solid #00ff00;
-            padding: 15px;
-            text-align: center;
-            background: rgba(0, 0, 0, 0.9);
+            color: var(--primary-color);
             text-decoration: none;
-            color: #00ff00;
-            transition: all 0.3s;
-            border-radius: 5px;
         }
         
-        .link-card:hover {
-            background: rgba(0, 255, 0, 0.1);
-            box-shadow: 0 0 10px #00ff00;
+        .nav-links {
+            display: flex;
+            list-style: none;
+            gap: 2rem;
+        }
+        
+        .nav-links a {
+            color: var(--text-light);
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+        
+        .nav-links a:hover {
+            color: var(--primary-color);
+        }
+        
+        /* Hero Section */
+        .hero {
+            padding: 120px 0 80px;
+            text-align: center;
+            background: linear-gradient(135deg, rgba(0, 255, 0, 0.1) 0%, rgba(0, 102, 204, 0.1) 100%);
+        }
+        
+        .hero h1 {
+            font-size: 3.5rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .hero .subtitle {
+            font-size: 1.5rem;
+            color: var(--text-muted);
+            margin-bottom: 2rem;
+        }
+        
+        .badges {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+        
+        .badge {
+            background: var(--bg-card);
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            border: 1px solid var(--border-color);
+            font-size: 0.9rem;
+        }
+        
+        .cta-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 2rem;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            font-size: 1rem;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        
+        .btn-primary {
+            background: var(--primary-color);
+            color: var(--bg-dark);
+            font-weight: bold;
+        }
+        
+        .btn-primary:hover {
+            background: #00cc00;
             transform: translateY(-2px);
         }
         
-        .controls {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            display: flex;
-            gap: 10px;
+        .btn-secondary {
+            background: transparent;
+            color: var(--text-light);
+            border: 2px solid var(--secondary-color);
         }
         
-        .control-btn {
-            background: #00ff00;
-            color: #000;
-            border: none;
-            padding: 10px 15px;
-            cursor: pointer;
-            font-family: inherit;
-            border-radius: 3px;
-            transition: all 0.3s;
+        .btn-secondary:hover {
+            background: var(--secondary-color);
+            transform: translateY(-2px);
         }
         
-        .control-btn:hover {
-            background: #00cc00;
-            transform: scale(1.05);
+        /* Features Section */
+        .features {
+            padding: 80px 0;
+            background: var(--bg-card);
         }
         
-        .loading {
+        .section-title {
             text-align: center;
-            color: #00ff00;
-            font-size: 1.2em;
+            font-size: 2.5rem;
+            margin-bottom: 3rem;
+            color: var(--primary-color);
         }
         
-        .intel-panel {
-            border: 1px solid #00ff00;
-            padding: 15px;
-            background: rgba(0, 0, 0, 0.9);
-            border-radius: 5px;
-            margin-bottom: 20px;
-        }
-        
-        .intel-item {
-            padding: 8px;
-            margin-bottom: 5px;
-            border-left: 3px solid #ff6600;
-            background: rgba(255, 102, 0, 0.05);
-            font-size: 0.85em;
-        }
-        
-        .threat-high { border-left-color: #ff0000; background: rgba(255, 0, 0, 0.05); }
-        .threat-medium { border-left-color: #ffaa00; background: rgba(255, 170, 0, 0.05); }
-        .threat-low { border-left-color: #00ff00; background: rgba(0, 255, 0, 0.05); }
-        
-        @keyframes blink {
-            0%, 50% { opacity: 1; }
-            51%, 100% { opacity: 0; }
-        }
-        
-        .blink {
-            animation: blink 1s infinite;
-        }
-        
-        .vpn-activity {
+        .features-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 10px;
-            margin-top: 10px;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-top: 2rem;
         }
         
-        .vpn-client {
-            padding: 8px;
-            border: 1px solid #0088ff;
-            background: rgba(0, 136, 255, 0.1);
-            border-radius: 3px;
+        .feature-card {
+            background: var(--bg-dark);
+            padding: 2rem;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            transition: transform 0.3s, border-color 0.3s;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--primary-color);
+        }
+        
+        .feature-icon {
+            font-size: 3rem;
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+        }
+        
+        .feature-card h3 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            color: var(--text-light);
+        }
+        
+        .feature-card p {
+            color: var(--text-muted);
+        }
+        
+        /* Installation Section */
+        .installation {
+            padding: 80px 0;
+        }
+        
+        .install-steps {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+        
+        .step {
             text-align: center;
-            font-size: 0.8em;
+            padding: 2rem;
         }
         
-        .vpn-client.active {
-            border-color: #00ff00;
-            background: rgba(0, 255, 0, 0.1);
+        .step-number {
+            width: 60px;
+            height: 60px;
+            background: var(--primary-color);
+            color: var(--bg-dark);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin: 0 auto 1rem;
         }
         
+        .code-block {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            padding: 1.5rem;
+            margin: 2rem 0;
+            font-family: 'Courier New', monospace;
+            overflow-x: auto;
+        }
+        
+        .code-block pre {
+            color: var(--primary-color);
+            margin: 0;
+        }
+        
+        /* Requirements Section */
+        .requirements {
+            padding: 80px 0;
+            background: var(--bg-card);
+        }
+        
+        .req-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+        
+        .req-item {
+            background: var(--bg-dark);
+            padding: 1.5rem;
+            border-radius: 5px;
+            border-left: 4px solid var(--primary-color);
+        }
+        
+        .req-item strong {
+            color: var(--primary-color);
+        }
+        
+        /* Footer */
+        .footer {
+            background: var(--bg-dark);
+            padding: 40px 0;
+            text-align: center;
+            border-top: 1px solid var(--border-color);
+        }
+        
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+        
+        .footer-links a {
+            color: var(--text-muted);
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+        
+        .footer-links a:hover {
+            color: var(--primary-color);
+        }
+        
+        /* Responsive */
         @media (max-width: 768px) {
-            .charts-grid {
-                grid-template-columns: 1fr;
+            .nav {
+                flex-direction: column;
+                gap: 1rem;
             }
             
-            .logs-container {
-                grid-template-columns: 1fr;
+            .nav-links {
+                gap: 1rem;
             }
             
-            .stats-grid {
-                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            .hero h1 {
+                font-size: 2.5rem;
             }
+            
+            .hero .subtitle {
+                font-size: 1.2rem;
+            }
+            
+            .cta-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+        
+        .scroll-indicator {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: var(--bg-dark);
+            z-index: 1001;
+        }
+        
+        .scroll-progress {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+            width: 0%;
+            transition: width 0.1s;
         }
     </style>
 </head>
 <body>
-    <canvas class="matrix-bg" id="matrix"></canvas>
+    <div class="matrix-bg"></div>
     
-    <div class="controls">
-        <button class="control-btn" onclick="loadData()">🔄 Actualizar</button>
-        <button class="control-btn" onclick="toggleAutoRefresh()">⏸️ Auto</button>
-        <button class="control-btn" onclick="exportData()">💾 Exportar</button>
+    <div class="scroll-indicator">
+        <div class="scroll-progress" id="scrollProgress"></div>
     </div>
     
-    <div class="container">
-        <div class="header">
-            <h1>🛡️ BYTEFENSE OS</h1>
-            <p>Sistema de Defensa Digital Distribuido</p>
-            <p id="last-update" class="blink">Cargando...</p>
+    <header class="header">
+        <div class="container">
+            <nav class="nav">
+                <a href="#" class="logo">
+                    <i class="fas fa-shield-alt"></i> Bytefense OS
+                </a>
+                <ul class="nav-links">
+                    <li><a href="#features">Características</a></li>
+                    <li><a href="#installation">Instalación</a></li>
+                    <li><a href="#requirements">Requisitos</a></li>
+                    <li><a href="https://github.com/jamosquea/bytefenseOS" target="_blank">GitHub</a></li>
+                </ul>
+            </nav>
         </div>
-        
-        <!-- Estadísticas principales -->
-        <div class="stats-grid" id="stats">
-            <div class="loading">Cargando estadísticas...</div>
-        </div>
-        
-        <!-- Gráficos -->
-        <div class="charts-grid">
-            <div class="chart-container">
-                <h3 class="chart-title">📊 Amenazas Bloqueadas (24h)</h3>
-                <canvas id="threatsChart" class="chart-canvas"></canvas>
-            </div>
-            
-            <div class="chart-container">
-                <h3 class="chart-title">🔐 Actividad VPN</h3>
-                <canvas id="vpnChart" class="chart-canvas"></canvas>
-                <div class="vpn-activity" id="vpnClients">
-                    <div class="loading">Cargando clientes VPN...</div>
+    </header>
+    
+    <main>
+        <section class="hero">
+            <div class="container">
+                <h1>Bytefense OS</h1>
+                <p class="subtitle">Sistema de Defensa Digital Distribuida</p>
+                
+                <div class="badges">
+                    <span class="badge">
+                        <i class="fab fa-github"></i> MIT License
+                    </span>
+                    <span class="badge">
+                        <i class="fab fa-python"></i> Python 3.8+
+                    </span>
+                    <span class="badge">
+                        <i class="fab fa-linux"></i> Linux Platform
+                    </span>
+                </div>
+                
+                <p style="max-width: 600px; margin: 0 auto; font-size: 1.1rem; color: var(--text-muted);">
+                    Protege tu red doméstica o empresarial con un sistema completo de defensa digital que incluye 
+                    filtrado DNS, VPN segura, monitoreo de amenazas y firewall inteligente.
+                </p>
+                
+                <div class="cta-buttons">
+                    <a href="#installation" class="btn btn-primary">
+                        <i class="fas fa-download"></i> Instalar Ahora
+                    </a>
+                    <a href="https://github.com/jamosquea/bytefenseOS" target="_blank" class="btn btn-secondary">
+                        <i class="fab fa-github"></i> Ver en GitHub
+                    </a>
                 </div>
             </div>
-            
-            <div class="chart-container">
-                <h3 class="chart-title">🌐 Estado de Nodos</h3>
-                <canvas id="nodesChart" class="chart-canvas"></canvas>
-            </div>
-            
-            <div class="chart-container">
-                <h3 class="chart-title">📈 Eventos por Tipo</h3>
-                <canvas id="eventsChart" class="chart-canvas"></canvas>
-            </div>
-        </div>
+        </section>
         
-        <!-- Logs y eventos -->
-        <div class="logs-section">
-            <h2 class="section-title">📋 Logs y Eventos Recientes</h2>
-            <div class="logs-container">
-                <div class="log-panel">
-                    <h3 class="chart-title">🚨 Eventos de Seguridad</h3>
-                    <div id="securityLogs">
-                        <div class="loading">Cargando eventos...</div>
+        <section id="features" class="features">
+            <div class="container">
+                <h2 class="section-title">🛡️ Características Principales</h2>
+                
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-filter"></i>
+                        </div>
+                        <h3>Filtrado DNS</h3>
+                        <p>Bloqueo automático de dominios maliciosos y publicidad no deseada usando Pi-hole para una navegación más segura y rápida.</p>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-shield-virus"></i>
+                        </div>
+                        <h3>VPN Segura</h3>
+                        <p>Conexión VPN cifrada con WireGuard para acceso remoto seguro y protección de la privacidad en línea.</p>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-chart-line"></i>
+                        </div>
+                        <h3>Monitoreo en Tiempo Real</h3>
+                        <p>Detección y análisis continuo de amenazas con alertas automáticas y métricas de seguridad detalladas.</p>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-fire"></i>
+                        </div>
+                        <h3>Firewall Inteligente</h3>
+                        <p>Protección avanzada con UFW que bloquea automáticamente IPs maliciosas y ataques de fuerza bruta.</p>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-tachometer-alt"></i>
+                        </div>
+                        <h3>Panel de Control</h3>
+                        <p>Interfaz web intuitiva para monitorear el estado del sistema, configurar módulos y visualizar estadísticas.</p>
+                    </div>
+                    
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="fas fa-network-wired"></i>
+                        </div>
+                        <h3>Red Distribuida</h3>
+                        <p>Sistema Reticularium que conecta múltiples nodos para compartir inteligencia de amenazas en tiempo real.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <section id="installation" class="installation">
+            <div class="container">
+                <h2 class="section-title">🚀 Instalación Rápida</h2>
+                
+                <div class="install-steps">
+                    <div class="step">
+                        <div class="step-number">1</div>
+                        <h3>Clonar Repositorio</h3>
+                        <p>Descarga el código fuente desde GitHub</p>
+                    </div>
+                    
+                    <div class="step">
+                        <div class="step-number">2</div>
+                        <h3>Ejecutar Instalador</h3>
+                        <p>Instala todos los módulos automáticamente</p>
+                    </div>
+                    
+                    <div class="step">
+                        <div class="step-number">3</div>
+                        <h3>Configurar Nodo</h3>
+                        <p>Inicializa y configura tu nodo de defensa</p>
                     </div>
                 </div>
                 
-                <div class="log-panel">
-                    <h3 class="chart-title">🧠 Inteligencia de Amenazas</h3>
-                    <div id="intelLogs">
-                        <div class="loading">Cargando intel...</div>
+                <div class="code-block">
+                    <pre># Clonar repositorio
+git clone https://github.com/jamosquea/bytefenseOS.git
+cd bytefenseOS
+
+# Ejecutar instalador
+sudo ./install.sh --all
+
+# Configurar nodo
+sudo bytefense-ctl init</pre>
+                </div>
+                
+                <p style="text-align: center; color: var(--text-muted); margin-top: 1rem;">
+                    <i class="fas fa-info-circle"></i> 
+                    La instalación toma aproximadamente 10-15 minutos dependiendo de tu conexión a internet.
+                </p>
+            </div>
+        </section>
+        
+        <section id="requirements" class="requirements">
+            <div class="container">
+                <h2 class="section-title">📋 Requisitos del Sistema</h2>
+                
+                <div class="req-grid">
+                    <div class="req-item">
+                        <strong>Sistema Operativo</strong><br>
+                        Ubuntu 20.04+ / Debian 11+ / Raspberry Pi OS
+                    </div>
+                    
+                    <div class="req-item">
+                        <strong>Memoria RAM</strong><br>
+                        Mínimo 2GB (Recomendado 4GB)
+                    </div>
+                    
+                    <div class="req-item">
+                        <strong>Almacenamiento</strong><br>
+                        8GB de espacio libre
+                    </div>
+                    
+                    <div class="req-item">
+                        <strong>Red</strong><br>
+                        Conexión a Internet estable
                     </div>
                 </div>
+                
+                <div style="text-align: center; margin-top: 2rem;">
+                    <p style="color: var(--text-muted);">
+                        <i class="fas fa-raspberry-pi"></i> 
+                        Optimizado especialmente para Raspberry Pi 5 y servidores Linux
+                    </p>
+                </div>
             </div>
-        </div>
-        
-        <!-- Nodos registrados -->
-        <div class="nodes-section">
-            <h2 class="section-title">🌐 Nodos Registrados</h2>
-            <div class="nodes-grid" id="nodes">
-                <div class="loading">Cargando nodos...</div>
+        </section>
+    </main>
+    
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-links">
+                <a href="https://github.com/jamosquea/bytefenseOS" target="_blank">
+                    <i class="fab fa-github"></i> GitHub
+                </a>
+                <a href="https://github.com/jamosquea/bytefenseOS/issues" target="_blank">
+                    <i class="fas fa-bug"></i> Reportar Bug
+                </a>
+                <a href="https://github.com/jamosquea/bytefenseOS/wiki" target="_blank">
+                    <i class="fas fa-book"></i> Documentación
+                </a>
+                <a href="https://github.com/jamosquea/bytefenseOS/releases" target="_blank">
+                    <i class="fas fa-download"></i> Releases
+                </a>
             </div>
+            
+            <p style="color: var(--text-muted); margin-top: 1rem;">
+                © 2024 Bytefense OS. Licencia MIT. Hecho con ❤️ para la comunidad de ciberseguridad.
+            </p>
         </div>
-        
-        <!-- Enlaces rápidos -->
-        <div class="quick-links">
-            <a href="/admin" class="link-card" target="_blank">
-                <h3>🕳️ Pi-hole Admin</h3>
-                <p>Gestión DNS</p>
-            </a>
-            <a href="#" class="link-card" onclick="showWireGuardPanel()">
-                <h3>🔐 WireGuard</h3>
-                <p>Configuración VPN</p>
-            </a>
-            <a href="#" class="link-card" onclick="showIntelPanel()">
-                <h3>🧠 Intel</h3>
-                <p>Amenazas detectadas</p>
-            </a>
-            <a href="#" class="link-card" onclick="showSystemLogs()">
-                <h3>📊 Logs Sistema</h3>
-                <p>Eventos del sistema</p>
-            </a>
-        </div>
-    </div>
+    </footer>
     
     <script>
-        // Variables globales
-        let autoRefresh = true;
-        let refreshInterval;
-        let charts = {};
+        // Scroll progress indicator
+        window.addEventListener('scroll', () => {
+            const scrolled = (window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)) * 100;
+            document.getElementById('scrollProgress').style.width = scrolled + '%';
+        });
         
-        // Configuración de Chart.js para tema oscuro
-        Chart.defaults.color = '#00ff00';
-        Chart.defaults.borderColor = '#333';
-        Chart.defaults.backgroundColor = 'rgba(0, 255, 0, 0.1)';
-        
-        // Efecto Matrix de fondo
-        const canvas = document.getElementById('matrix');
-        const ctx = canvas.getContext('2d');
-        
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-        
-        const matrix = "ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789@#$%^&*()*&^%+-/~{[|`]}";
-        const matrixArray = matrix.split("");
-        
-        const fontSize = 10;
-        const columns = canvas.width / fontSize;
-        
-        const drops = [];
-        for(let x = 0; x < columns; x++) {
-            drops[x] = 1;
-        }
-        
-        function drawMatrix() {
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.04)';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            ctx.fillStyle = '#00ff00';
-            ctx.font = fontSize + 'px monospace';
-            
-            for(let i = 0; i < drops.length; i++) {
-                const text = matrixArray[Math.floor(Math.random() * matrixArray.length)];
-                ctx.fillText(text, i * fontSize, drops[i] * fontSize);
-                
-                if(drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
-                    drops[i] = 0;
-                }
-                drops[i]++;
-            }
-        }
-        
-        setInterval(drawMatrix, 35);
-        
-        // Funciones principales
-        async function loadData() {
-            try {
-                // Cargar datos de múltiples endpoints
-                const [statusResponse, nodesResponse, threatsResponse, eventsResponse] = await Promise.all([
-                    fetch('/api/status'),
-                    fetch('/api/nodes'),
-                    fetch('/api/threats'),
-                    fetch('/api/events')
-                ]);
-                
-                const statusData = await statusResponse.json();
-                const nodesData = await nodesResponse.json();
-                const threatsData = await getThreatsData();
-                const eventsData = await getEventsData();
-                
-                updateStats(statusData.statistics);
-                updateNodes(nodesData.nodes);
-                updateCharts(threatsData, eventsData, nodesData.nodes);
-                updateLogs();
-                
-                document.getElementById('last-update').textContent = 
-                    `Última actualización: ${new Date().toLocaleTimeString()}`;
-                    
-            } catch (error) {
-                console.error('Error loading data:', error);
-                document.getElementById('stats').innerHTML = 
-                    '<div style="color: #ff0000;">❌ Error al cargar datos</div>';
-            }
-        }
-        
-        async function getThreatsData() {
-            // Simular datos de amenazas (en producción vendría de la API)
-            const hours = [];
-            const threats = [];
-            
-            for (let i = 23; i >= 0; i--) {
-                const hour = new Date();
-                hour.setHours(hour.getHours() - i);
-                hours.push(hour.getHours() + ':00');
-                threats.push(Math.floor(Math.random() * 50) + 10);
-            }
-            
-            return { hours, threats };
-        }
-        
-        async function getEventsData() {
-            // Simular datos de eventos
-            return {
-                types: ['BLOCK', 'SCAN', 'AUTH_FAIL', 'VPN_CONNECT', 'DNS_QUERY'],
-                counts: [45, 23, 12, 8, 156]
-            };
-        }
-        
-        function updateStats(stats) {
-            const statsHtml = `
-                <div class="stat-card">
-                    <h3>🌐 Nodos Totales</h3>
-                    <div class="stat-value">${stats.total_nodes || 0}</div>
-                </div>
-                <div class="stat-card">
-                    <h3>✅ Nodos Online</h3>
-                    <div class="stat-value">${stats.online_nodes || 0}</div>
-                </div>
-                <div class="stat-card">
-                    <h3>🚫 IPs Bloqueadas</h3>
-                    <div class="stat-value">${stats.blocked_ips_24h || 0}</div>
-                </div>
-                <div class="stat-card">
-                    <h3>📊 Eventos (24h)</h3>
-                    <div class="stat-value">${stats.events_24h || 0}</div>
-                </div>
-                <div class="stat-card">
-                    <h3>🔐 Clientes VPN</h3>
-                    <div class="stat-value">${Math.floor(Math.random() * 10) + 2}</div>
-                </div>
-                <div class="stat-card">
-                    <h3>🧠 Amenazas Intel</h3>
-                    <div class="stat-value">${Math.floor(Math.random() * 100) + 50}</div>
-                </div>
-            `;
-            
-            document.getElementById('stats').innerHTML = statsHtml;
-        }
-        
-        function updateCharts(threatsData, eventsData, nodes) {
-            // Gráfico de amenazas bloqueadas
-            updateThreatsChart(threatsData);
-            
-            // Gráfico de actividad VPN
-            updateVPNChart();
-            
-            // Gráfico de estado de nodos
-            updateNodesChart(nodes);
-            
-            // Gráfico de eventos por tipo
-            updateEventsChart(eventsData);
-        }
-        
-        function updateThreatsChart(data) {
-            const ctx = document.getElementById('threatsChart').getContext('2d');
-            
-            if (charts.threats) {
-                charts.threats.destroy();
-            }
-            
-            charts.threats = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: data.hours,
-                    datasets: [{
-                        label: 'Amenazas Bloqueadas',
-                        data: data.threats,
-                        borderColor: '#ff0000',
-                        backgroundColor: 'rgba(255, 0, 0, 0.1)',
-                        tension: 0.4,
-                        fill: true
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            display: false
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            grid: {
-                                color: '#333'
-                            }
-                        },
-                        x: {
-                            grid: {
-                                color: '#333'
-                            }
-                        }
-                    }
+        // Smooth scrolling for navigation links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
                 }
             });
-        }
+        });
         
-        function updateVPNChart() {
-            const ctx = document.getElementById('vpnChart').getContext('2d');
-            
-            if (charts.vpn) {
-                charts.vpn.destroy();
-            }
-            
-            const vpnData = {
-                labels: ['Conectados', 'Desconectados', 'Configurados'],
-                datasets: [{
-                    data: [5, 2, 8],
-                    backgroundColor: [
-                        '#00ff00',
-                        '#ff0000',
-                        '#ffaa00'
-                    ],
-                    borderColor: '#000',
-                    borderWidth: 2
-                }]
-            };
-            
-            charts.vpn = new Chart(ctx, {
-                type: 'doughnut',
-                data: vpnData,
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'bottom'
-                        }
-                    }
+        // Add animation on scroll
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+        
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.opacity = '1';
+                    entry.target.style.transform = 'translateY(0)';
                 }
             });
-            
-            // Actualizar lista de clientes VPN
-            updateVPNClients();
-        }
+        }, observerOptions);
         
-        function updateVPNClients() {
-            const clients = [
-                { name: 'Cliente-01', status: 'active', ip: '10.8.0.2' },
-                { name: 'Cliente-02', status: 'active', ip: '10.8.0.3' },
-                { name: 'Cliente-03', status: 'inactive', ip: '10.8.0.4' },
-                { name: 'Cliente-04', status: 'active', ip: '10.8.0.5' },
-                { name: 'Cliente-05', status: 'inactive', ip: '10.8.0.6' }
-            ];
-            
-            const clientsHtml = clients.map(client => 
-                `<div class="vpn-client ${client.status}">
-                    <div>${client.name}</div>
-                    <div style="font-size: 0.7em; color: #888;">${client.ip}</div>
-                </div>`
-            ).join('');
-            
-            document.getElementById('vpnClients').innerHTML = clientsHtml;
-        }
-        
-        function updateNodesChart(nodes) {
-            const ctx = document.getElementById('nodesChart').getContext('2d');
-            
-            if (charts.nodes) {
-                charts.nodes.destroy();
-            }
-            
-            const online = nodes.filter(n => n.status === 'online').length;
-            const offline = nodes.length - online;
-            
-            charts.nodes = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: ['Online', 'Offline'],
-                    datasets: [{
-                        label: 'Nodos',
-                        data: [online, offline],
-                        backgroundColor: ['#00ff00', '#ff0000'],
-                        borderColor: '#000',
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            display: false
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            grid: {
-                                color: '#333'
-                            }
-                        },
-                        x: {
-                            grid: {
-                                color: '#333'
-                            }
-                        }
-                    }
-                }
-            });
-        }
-        
-        function updateEventsChart(data) {
-            const ctx = document.getElementById('eventsChart').getContext('2d');
-            
-            if (charts.events) {
-                charts.events.destroy();
-            }
-            
-            charts.events = new Chart(ctx, {
-                type: 'pie',
-                data: {
-                    labels: data.types,
-                    datasets: [{
-                        data: data.counts,
-                        backgroundColor: [
-                            '#ff0000',
-                            '#ffaa00',
-                            '#ff6600',
-                            '#00ff00',
-                            '#0088ff'
-                        ],
-                        borderColor: '#000',
-                        borderWidth: 2
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'bottom'
-                        }
-                    }
-                }
-            });
-        }
-        
-        function updateNodes(nodes) {
-            if (nodes.length === 0) {
-                document.getElementById('nodes').innerHTML = 
-                    '<div class="loading">📭 No hay nodos registrados</div>';
-                return;
-            }
-            
-            const nodesHtml = nodes.map(node => {
-                const isOnline = node.status === 'online';
-                const lastHeartbeat = new Date(node.last_heartbeat + 'Z').toLocaleString();
-                
-                return `
-                    <div class="node-card ${isOnline ? 'online' : 'offline'}">
-                        <div class="node-header">
-                            <div class="node-name">${node.node_name}</div>
-                            <div class="node-status ${isOnline ? 'status-online' : 'status-offline'}">
-                                ${isOnline ? '✅ ONLINE' : '❌ OFFLINE'}
-                            </div>
-                        </div>
-                        <div class="node-info">
-                            <div>🆔 ID: ${node.node_id.substring(0, 8)}...</div>
-                            <div>🔧 Tipo: ${node.node_type.toUpperCase()}</div>
-                            <div>🏠 IP: ${node.ip_address}:${node.port}</div>
-                            ${node.public_ip ? `<div>🌐 IP Pública: ${node.public_ip}</div>` : ''}
-                            <div>📅 Último heartbeat: ${lastHeartbeat}</div>
-                            ${node.metadata && node.metadata.load_avg ? 
-                                `<div>📊 Load: ${node.metadata.load_avg}</div>` : ''}
-                        </div>
-                    </div>
-                `;
-            }).join('');
-            
-            document.getElementById('nodes').innerHTML = nodesHtml;
-        }
-        
-        function updateLogs() {
-            // Logs de seguridad
-            const securityLogs = [
-                { time: '14:32:15', type: 'error', message: 'IP 192.168.1.200 bloqueada por SSH brute force' },
-                { time: '14:31:42', type: 'warning', message: 'Intento de acceso desde IP desconocida: 10.0.0.50' },
-                { time: '14:30:18', type: 'info', message: 'Cliente VPN conectado desde 203.0.113.45' },
-                { time: '14:29:55', type: 'error', message: 'Dominio malicioso bloqueado: malware.example.com' },
-                { time: '14:28:33', type: 'info', message: 'Actualización de feeds de amenazas completada' }
-            ];
-            
-            const securityHtml = securityLogs.map(log => 
-                `<div class="log-entry ${log.type}">
-                    <span class="log-time">${log.time}</span> - ${log.message}
-                </div>`
-            ).join('');
-            
-            document.getElementById('securityLogs').innerHTML = securityHtml;
-            
-            // Logs de inteligencia
-            const intelLogs = [
-                { severity: 'high', indicator: '203.0.113.100', type: 'IP', source: 'Malware C2' },
-                { severity: 'medium', indicator: 'evil.example.com', type: 'Domain', source: 'Phishing' },
-                { severity: 'high', indicator: '198.51.100.50', type: 'IP', source: 'Botnet' },
-                { severity: 'low', indicator: 'suspicious.test', type: 'Domain', source: 'Spam' },
-                { severity: 'medium', indicator: '192.0.2.75', type: 'IP', source: 'Scanner' }
-            ];
-            
-            const intelHtml = intelLogs.map(intel => 
-                `<div class="intel-item threat-${intel.severity}">
-                    <strong>${intel.indicator}</strong> (${intel.type})<br>
-                    <small>Fuente: ${intel.source} | Severidad: ${intel.severity.toUpperCase()}</small>
-                </div>`
-            ).join('');
-            
-            document.getElementById('intelLogs').innerHTML = intelHtml;
-        }
-        
-        function toggleAutoRefresh() {
-            autoRefresh = !autoRefresh;
-            const btn = document.querySelector('.control-btn:nth-child(2)');
-            
-            if (autoRefresh) {
-                btn.textContent = '⏸️ Auto';
-                refreshInterval = setInterval(loadData, 30000);
-            } else {
-                btn.textContent = '▶️ Auto';
-                clearInterval(refreshInterval);
-            }
-        }
-        
-        function exportData() {
-            // Exportar datos a JSON
-            const data = {
-                timestamp: new Date().toISOString(),
-                stats: document.getElementById('stats').textContent,
-                nodes: document.getElementById('nodes').textContent
-            };
-            
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `bytefense-export-${new Date().toISOString().split('T')[0]}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
-        }
-        
-        function showWireGuardPanel() {
-            alert('Panel WireGuard - Funcionalidad en desarrollo\n\nAquí se mostrará:\n- Lista de clientes configurados\n- Códigos QR para nuevos dispositivos\n- Estadísticas de conexión\n- Configuración del servidor');
-        }
-        
-        function showIntelPanel() {
-            alert('Panel de Inteligencia - Funcionalidad en desarrollo\n\nAquí se mostrará:\n- Amenazas detectadas en tiempo real\n- Feeds de inteligencia activos\n- Análisis de patrones\n- Configuración de fuentes');
-        }
-        
-        function showSystemLogs() {
-            alert('Logs del Sistema - Funcionalidad en desarrollo\n\nAquí se mostrará:\n- Logs de systemd\n- Logs de aplicación\n- Métricas del sistema\n- Alertas y notificaciones');
-        }
-        
-        // Inicialización
-        loadData();
-        
-        // Auto-refresh cada 30 segundos
-        refreshInterval = setInterval(loadData, 30000);
-        
-        // Redimensionar canvas al cambiar tamaño de ventana
-        window.addEventListener('resize', () => {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
+        // Observe feature cards and steps
+        document.querySelectorAll('.feature-card, .step, .req-item').forEach(el => {
+            el.style.opacity = '0';
+            el.style.transform = 'translateY(20px)';
+            el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+            observer.observe(el);
         });
     </script>
 </body>
