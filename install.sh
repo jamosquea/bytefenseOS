@@ -737,3 +737,69 @@ echo ""
 echo "⚙️  Configuración inicial: sudo bytefense-ctl init"
 echo "📖 Consulta la documentación en $BYTEFENSE_HOME/docs/"
 echo "📦 Módulos instalados en: $MODULES_DIR"
+
+# Función para instalar módulo speedtest
+install_speedtest_module() {
+    log "🚀 Instalando módulo OpenSpeedTest..."
+    
+    # Instalar speedtest-cli
+    if ! pip3 install speedtest-cli; then
+        log "⚠️  Advertencia: No se pudo instalar speedtest-cli"
+    fi
+    
+    # Descargar OpenSpeedTest
+    SPEEDTEST_DIR="$BYTEFENSE_HOME/web/speedtest"
+    mkdir -p "$SPEEDTEST_DIR"
+    
+    # Clonar OpenSpeedTest
+    if ! git clone https://github.com/openspeedtest/Speed-Test.git "$SPEEDTEST_DIR"; then
+        log "⚠️  Error al descargar OpenSpeedTest"
+        return 1
+    fi
+    
+    # Configurar permisos
+    chown -R "$BYTEFENSE_USER":"$BYTEFENSE_USER" "$SPEEDTEST_DIR"
+    
+    # Crear servicio systemd
+    cat > "/etc/systemd/system/bytefense-speedtest.service" << EOF
+[Unit]
+Description=Bytefense SpeedTest Monitor
+After=network.target
+
+[Service]
+Type=simple
+User=$BYTEFENSE_USER
+WorkingDirectory=$BYTEFENSE_HOME
+ExecStart=/usr/bin/python3 $BYTEFENSE_HOME/bin/bytefense-speedtest.py daemon
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    
+    # Habilitar servicio
+    systemctl daemon-reload
+    systemctl enable bytefense-speedtest
+    systemctl start bytefense-speedtest
+    
+    # Configurar nginx/lighttpd para servir OpenSpeedTest
+    cat > "/etc/lighttpd/conf-available/50-speedtest.conf" << EOF
+alias.url += ( "/speedtest" => "$SPEEDTEST_DIR" )
+EOF
+    
+    lighttpd-enable-mod speedtest
+    systemctl reload lighttpd
+    
+    log "✅ Módulo OpenSpeedTest instalado"
+}
+
+# Agregar speedtest a los módulos disponibles
+AVAILABLE_MODULES=("core" "pi-hole" "vpn" "intel" "honeypot" "reticularium" "speedtest")
+
+# En la función install_module, agregar:
+case $module in
+    "speedtest")
+        install_speedtest_module
+        ;;
+esac
