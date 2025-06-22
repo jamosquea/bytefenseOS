@@ -1,0 +1,31 @@
+title: Bytefense OS
+description: Sistema de Defensa Digital Distribuida
+url: "https://jamosquea.github.io"
+baseurl: "/bytefenseOS"
+
+# GitHub Pages settings
+theme: minima
+plugins:
+  - jekyll-feed
+  - jekyll-sitemap
+  - jekyll-seo-tag
+
+# SEO settings
+author: jamosquea
+twitter:
+  username: jamosquea
+social:
+  name: Bytefense OS
+  links:
+    - https://github.com/jamosquea/bytefenseOS
+
+# Exclude files
+exclude:
+  - bin/
+  - debian/
+  - system/
+  - build-*.sh
+  - install*.sh
+  - Vagrantfile
+  - Makefile
+  - "*.md"
