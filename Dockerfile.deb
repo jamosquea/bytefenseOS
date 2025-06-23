@@ -1,0 +1,26 @@
+FROM ubuntu:22.04
+
+# Evitar prompts interactivos
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Instalar dependencias
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    fakeroot \
+    lintian \
+    dpkg-dev \
+    file \
+    gzip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Establecer directorio de trabajo
+WORKDIR /build
+
+# Copiar archivos del proyecto
+COPY . .
+
+# Hacer ejecutable el script y construir
+RUN chmod +x build-deb.sh && ./build-deb.sh
+
+# Comando por defecto para extraer archivos
+CMD ["cp", "-r", "dist", "/output/"]

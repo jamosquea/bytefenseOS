@@ -1,0 +1,9 @@
+
+## How to Use
+
+### 1. Fix the Windows Installer
+Replace your current <mcfile name="install-windows.ps1" path="c:\proyectos\bytefense\install-windows.ps1"></mcfile> with the corrected version above, then run:
+
+```powershell
+# Run as Administrator
+.\install-windows.ps1
