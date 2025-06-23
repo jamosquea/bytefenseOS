@@ -1,0 +1,14 @@
+/opt/bytefense/          # Instalación principal
+├── bin/                 # Scripts ejecutables
+├── feeds/               # Listas de amenazas
+├── web/                 # Interfaz web
+├── docs/                # Documentación
+└── system/              # Configuraciones
+
+/etc/systemd/system/     # Servicios del sistema
+├── bytefense-dashboard.service
+├── bytefense-watch.service
+└── bytefense-intel-updater.service
+
+/usr/local/bin/          # Comando global
+└── bytefense-ctl        # Enlace simbólico

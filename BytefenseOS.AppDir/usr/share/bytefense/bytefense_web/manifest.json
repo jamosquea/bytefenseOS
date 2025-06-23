@@ -1,0 +1,21 @@
+{
+  "name": "Bytefense OS - Defensa Digital Distribuida",
+  "short_name": "Bytefense",
+  "description": "Sistema de defensa digital distribuida con firewall inteligente, VPN y monitoreo en tiempo real",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0A0A0A",
+  "theme_color": "#59C9EC",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "images/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["security", "networking", "utilities"],
+  "lang": "es",
+  "scope": "/"
+}

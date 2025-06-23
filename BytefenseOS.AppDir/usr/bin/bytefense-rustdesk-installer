@@ -1,0 +1,35 @@
+#!/bin/bash
+# Bytefense OS - RustDesk Installer
+# Instalador multiplataforma de RustDesk integrado con Bytefense
+
+set -e
+
+# Configuración por defecto de Bytefense
+PASSWORD="Bytefense@2024"
+CONFIG="bytefense-rustdesk-config"
+LOG_FILE="/var/log/bytefense/rustdesk-install.log"
+
+# Crear directorio de logs si no existe
+mkdir -p /var/log/bytefense
+
+echo "🔧 Bytefense OS - Instalador RustDesk" | tee -a "$LOG_FILE"
+echo "📅 $(date)" | tee -a "$LOG_FILE"
+echo "========================================" | tee -a "$LOG_FILE"
+
+# Detectar sistema operativo
+if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    echo "🐧 Sistema detectado: Linux" | tee -a "$LOG_FILE"
+    bash "$(dirname "$0")/bytefense-rustdesk-linux" "$CONFIG" "$PASSWORD" 2>&1 | tee -a "$LOG_FILE"
+    
+elif [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" || "$OSTYPE" == "cygwin" ]]; then
+    echo "🪟 Sistema detectado: Windows" | tee -a "$LOG_FILE"
+    powershell.exe -ExecutionPolicy Bypass -File "$(dirname "$0")/bytefense-rustdesk-windows.ps1" -Config "$CONFIG" -Password "$PASSWORD" 2>&1 | tee -a "$LOG_FILE"
+    
+else
+    echo "❌ Sistema operativo no compatible automáticamente." | tee -a "$LOG_FILE"
+    echo "Sistemas soportados: Linux, Windows" | tee -a "$LOG_FILE"
+    exit 1
+fi
+
+echo "✅ Instalación de RustDesk completada" | tee -a "$LOG_FILE"
+echo "📋 Log guardado en: $LOG_FILE" | tee -a "$LOG_FILE"

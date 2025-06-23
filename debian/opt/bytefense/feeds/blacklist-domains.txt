@@ -1,0 +1,7 @@
+# Bytefense OS - Lista de Dominios Maliciosos
+# Actualizada automáticamente
+
+malware-domain.com
+phishing-site.net
+bad-actor.org
+spam-source.info

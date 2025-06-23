@@ -1,0 +1,17 @@
+bytefense_web/
+├── index.html          # Página principal
+├── demo.html           # Simulación interactiva
+├── pricing.html        # Planes de precios
+├── favicon.ico         # Icono del sitio
+├── manifest.json       # PWA manifest
+├── css/
+│   ├── main.css        # Estilos principales
+│   └── animations.css  # Animaciones CSS
+├── js/
+│   ├── demo-simulation.js  # Lógica de simulación
+│   └── effects.js      # Efectos interactivos
+└── images/
+    ├── logo.svg        # Logo principal
+    ├── hero-bg.svg     # Fondo hero section
+    ├── feature-*.svg   # Iconos de características
+    └── github-icon.svg # Icono GitHub

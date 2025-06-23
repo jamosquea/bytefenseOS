@@ -1,54 +1,20 @@
-#!/bin/bash
-# Bytefense OS - Script de Post-eliminación
-
+﻿#!/bin/bash
 set -e
 
-BYTEFENSE_HOME="/opt/bytefense"
-BYTEFENSE_USER="bytefense"
+# Post-removal script for Bytefense OS
+echo "Limpiando Bytefense OS..."
 
-log() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "/var/log/bytefense-remove.log"
-}
-
-case "$1" in
-    remove)
-        log "🧹 Limpiando archivos de Bytefense OS..."
-        
-        # Eliminar enlace simbólico
-        rm -f /usr/local/bin/bytefense-ctl
-        
-        # Recargar systemd
-        systemctl daemon-reload
-        
-        log "✅ Limpieza básica completada"
-        echo "ℹ️ Los datos en $BYTEFENSE_HOME se mantienen para seguridad"
-        echo "ℹ️ Para eliminar completamente: sudo rm -rf $BYTEFENSE_HOME"
-        ;;
-        
-    purge)
-        log "🗑️ Eliminación completa de Bytefense OS..."
-        
-        # Eliminar completamente el directorio
-        rm -rf "$BYTEFENSE_HOME"
-        
-        # Eliminar usuario del sistema
-        if id "$BYTEFENSE_USER" &>/dev/null; then
-            userdel "$BYTEFENSE_USER" 2>/dev/null || true
-        fi
-        
-        # Eliminar logs
-        rm -f /var/log/bytefense-*.log
-        
-        log "✅ Eliminación completa finalizada"
-        ;;
-        
-    upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
-        # No hacer nada en estos casos
-        ;;
-        
-    *)
-        log "❓ Acción desconocida: $1"
-        ;;
-esac
+if [ "" = "purge" ]; then
+    # Remove user and data only on purge
+    if id "bytefense" &>/dev/null; then
+        userdel bytefense || true
+    fi
+    
+    # Remove log and data directories
+    rm -rf /var/log/bytefense
+    rm -rf /var/lib/bytefense
+    
+    echo "Bytefense OS completamente removido"
+fi
 
 exit 0

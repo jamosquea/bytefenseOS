@@ -1,0 +1,144 @@
+#!/bin/bash
+# Bytefense OS - Sistema de Backup Automático
+
+set -euo pipefail
+
+BYTEFENSE_HOME="/opt/bytefense"
+BACKUP_DIR="/var/backups/bytefense"
+MAX_BACKUPS=7
+COMPRESSION_LEVEL=6
+
+# Crear directorio de backup
+mkdir -p "$BACKUP_DIR"
+
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$BACKUP_DIR/backup.log"
+}
+
+# Función de backup
+create_backup() {
+    local timestamp=$(date '+%Y%m%d_%H%M%S')
+    local backup_file="$BACKUP_DIR/bytefense_backup_$timestamp.tar.gz"
+    
+    log "🔄 Iniciando backup: $backup_file"
+    
+    # Crear backup comprimido
+    tar -czf "$backup_file" \
+        --exclude="$BYTEFENSE_HOME/logs/*.log" \
+        --exclude="$BYTEFENSE_HOME/tmp/*" \
+        -C / \
+        opt/bytefense \
+        etc/systemd/system/bytefense-*.service \
+        2>/dev/null || true
+    
+    if [[ -f "$backup_file" ]]; then
+        local size=$(du -h "$backup_file" | cut -f1)
+        log "✅ Backup completado: $backup_file ($size)"
+        
+        # Limpiar backups antiguos
+        cleanup_old_backups
+        
+        return 0
+    else
+        log "❌ Error creando backup"
+        return 1
+    fi
+}
+
+# Limpiar backups antiguos
+cleanup_old_backups() {
+    local backup_count=$(ls -1 "$BACKUP_DIR"/bytefense_backup_*.tar.gz 2>/dev/null | wc -l)
+    
+    if [[ $backup_count -gt $MAX_BACKUPS ]]; then
+        local to_delete=$((backup_count - MAX_BACKUPS))
+        log "🧹 Limpiando $to_delete backups antiguos"
+        
+        ls -1t "$BACKUP_DIR"/bytefense_backup_*.tar.gz | tail -n "$to_delete" | while read -r old_backup; do
+            rm -f "$old_backup"
+            log "🗑️  Eliminado: $(basename "$old_backup")"
+        done
+    fi
+}
+
+# Restaurar backup
+restore_backup() {
+    local backup_file="$1"
+    
+    if [[ ! -f "$backup_file" ]]; then
+        log "❌ Archivo de backup no encontrado: $backup_file"
+        return 1
+    fi
+    
+    log "🔄 Restaurando desde: $backup_file"
+    
+    # Crear backup del estado actual antes de restaurar
+    create_backup
+    
+    # Detener servicios
+    systemctl stop bytefense-dashboard-secure bytefense-watch-secure 2>/dev/null || true
+    
+    # Restaurar archivos
+    tar -xzf "$backup_file" -C / 2>/dev/null
+    
+    # Reiniciar servicios
+    systemctl daemon-reload
+    systemctl start bytefense-dashboard-secure bytefense-watch-secure
+    
+    log "✅ Restauración completada"
+}
+
+# Listar backups
+list_backups() {
+    echo "📋 Backups disponibles:"
+    echo ""
+    
+    if ls "$BACKUP_DIR"/bytefense_backup_*.tar.gz &>/dev/null; then
+        ls -lh "$BACKUP_DIR"/bytefense_backup_*.tar.gz | while read -r line; do
+            local file=$(echo "$line" | awk '{print $9}')
+            local size=$(echo "$line" | awk '{print $5}')
+            local date=$(echo "$line" | awk '{print $6, $7, $8}')
+            echo "  📦 $(basename "$file") - $size - $date"
+        done
+    else
+        echo "  ❌ No hay backups disponibles"
+    fi
+}
+
+# Función principal
+main() {
+    case "${1:-create}" in
+        "create")
+            create_backup
+            ;;
+        "restore")
+            if [[ -n "${2:-}" ]]; then
+                restore_backup "$2"
+            else
+                echo "❌ Especifica el archivo de backup a restaurar"
+                echo "Uso: $0 restore /path/to/backup.tar.gz"
+                exit 1
+            fi
+            ;;
+        "list")
+            list_backups
+            ;;
+        "help")
+            echo "🛡️  Bytefense OS - Sistema de Backup"
+            echo ""
+            echo "Uso: $0 [comando]"
+            echo ""
+            echo "Comandos:"
+            echo "  create          Crear nuevo backup (por defecto)"
+            echo "  restore <file>  Restaurar desde backup"
+            echo "  list           Listar backups disponibles"
+            echo "  help           Mostrar esta ayuda"
+            ;;
+        *)
+            echo "❌ Comando desconocido: $1"
+            echo "Usa '$0 help' para ver los comandos disponibles"
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"

@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=Bytefense OS
+Exec=bytefense-ctl
+Icon=bytefense
+Categories=Security;Network;

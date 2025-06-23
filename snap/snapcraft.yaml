@@ -1,0 +1,33 @@
+name: bytefense-os
+version: '1.0.0'
+summary: Sistema de defensa digital avanzado con IA
+description: |
+  Sistema completo de ciberseguridad con capacidades de IA,
+  monitoreo en tiempo real, firewall inteligente y detección
+  de amenazas avanzadas.
+
+grade: stable
+confinement: classic
+
+parts:
+  bytefense:
+    plugin: dump
+    source: .
+    organize:
+      bin/*: bin/
+      bytefense_web/*: web/
+      system/*: system/
+      feeds/*: feeds/
+    stage-packages:
+      - python3
+      - python3-pip
+      - iptables
+
+apps:
+  bytefense-ctl:
+    command: bin/bytefense-ctl
+  bytefense-health:
+    command: bin/bytefense-health
+  bytefense-watch:
+    command: bin/bytefense-watch
+    daemon: simple

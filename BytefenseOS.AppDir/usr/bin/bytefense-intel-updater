@@ -1,0 +1,196 @@
+#!/bin/bash
+# Bytefense OS - Actualizador de Inteligencia de Amenazas
+
+set -euo pipefail
+
+BYTEFENSE_HOME="/opt/bytefense"
+CONFIG_FILE="$BYTEFENSE_HOME/system/bytefense-config.json"
+DB_FILE="$BYTEFENSE_HOME/intel/threats.db"
+LOG_FILE="$BYTEFENSE_HOME/logs/intel-updater.log"
+TEMP_DIR="/tmp/bytefense-intel"
+
+# Crear directorios necesarios
+mkdir -p "$(dirname "$LOG_FILE")" "$TEMP_DIR"
+
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
+}
+
+# Fuentes de threat intelligence
+THREAT_SOURCES=(
+    "https://rules.emergingthreats.net/blockrules/compromised-ips.txt"
+    "https://www.spamhaus.org/drop/drop.txt"
+    "https://cinsscore.com/list/ci-badguys.txt"
+    "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level1.netset"
+    "https://raw.githubusercontent.com/stamparm/ipsum/master/ipsum.txt"
+)
+
+# Descargar y procesar fuente de amenazas
+process_threat_source() {
+    local url="$1"
+    local source_name=$(basename "$url" .txt)
+    local temp_file="$TEMP_DIR/$source_name.tmp"
+    
+    log "📥 Descargando: $url"
+    
+    # Descargar con timeout y reintentos
+    if ! timeout 60 curl -f -s -L "$url" -o "$temp_file"; then
+        log "❌ Error descargando: $url"
+        return 1
+    fi
+    
+    # Verificar que el archivo no esté vacío
+    if [[ ! -s "$temp_file" ]]; then
+        log "⚠️  Archivo vacío: $url"
+        return 1
+    fi
+    
+    local count=0
+    
+    # Procesar IPs del archivo
+    while IFS= read -r line; do
+        # Limpiar línea
+        line=$(echo "$line" | tr -d '\r' | sed 's/#.*//' | xargs)
+        
+        # Saltar líneas vacías o comentarios
+        [[ -z "$line" || "$line" =~ ^[#;] ]] && continue
+        
+        # Extraer IP (primer campo)
+        local ip=$(echo "$line" | awk '{print $1}')
+        
+        # Validar formato de IP
+        if [[ $ip =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+            # Verificar rangos válidos
+            IFS='.' read -ra OCTETS <<< "$ip"
+            local valid=true
+            
+            for octet in "${OCTETS[@]}"; do
+                if [[ $octet -gt 255 || $octet -lt 0 ]]; then
+                    valid=false
+                    break
+                fi
+            done
+            
+            # Excluir IPs privadas
+            if [[ $valid == true ]] && ! [[ $ip =~ ^(10\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.|127\.|0\.|255\.) ]]; then
+                # Insertar en base de datos
+                sqlite3 "$DB_FILE" "INSERT OR IGNORE INTO threat_intel (indicator, type, source, confidence, first_seen, last_seen) VALUES ('$ip', 'ip', '$source_name', 75, datetime('now'), datetime('now'));" 2>/dev/null
+                ((count++))
+            fi
+        fi
+    done < "$temp_file"
+    
+    log "✅ Procesadas $count IPs de $source_name"
+    rm -f "$temp_file"
+    return 0
+}
+
+# Limpiar datos antiguos
+cleanup_old_data() {
+    log "🧹 Limpiando datos antiguos..."
+    
+    # Eliminar registros más antiguos de 30 días
+    local deleted=$(sqlite3 "$DB_FILE" "DELETE FROM threat_intel WHERE last_seen < datetime('now', '-30 days'); SELECT changes();")
+    
+    if [[ $deleted -gt 0 ]]; then
+        log "🗑️  Eliminados $deleted registros antiguos"
+    fi
+    
+    # Optimizar base de datos
+    sqlite3 "$DB_FILE" "VACUUM;"
+    log "🔧 Base de datos optimizada"
+}
+
+# Aplicar reglas de firewall
+apply_firewall_rules() {
+    log "🔥 Aplicando reglas de firewall..."
+    
+    # Obtener IPs de alta confianza
+    local high_confidence_ips=$(sqlite3 "$DB_FILE" "SELECT indicator FROM threat_intel WHERE type='ip' AND confidence >= 80 AND last_seen >= datetime('now', '-7 days') LIMIT 1000;")
+    
+    local blocked_count=0
+    
+    while IFS= read -r ip; do
+        [[ -z "$ip" ]] && continue
+        
+        # Verificar si ya está bloqueada
+        if ! ufw status numbered | grep -q "$ip"; then
+            if timeout 5 ufw deny from "$ip" >/dev/null 2>&1; then
+                ((blocked_count++))
+            fi
+        fi
+    done <<< "$high_confidence_ips"
+    
+    log "🚫 Bloqueadas $blocked_count nuevas IPs maliciosas"
+}
+
+# Generar reporte
+generate_report() {
+    log "📊 Generando reporte de threat intelligence..."
+    
+    local total_indicators=$(sqlite3 "$DB_FILE" "SELECT COUNT(*) FROM threat_intel;")
+    local recent_indicators=$(sqlite3 "$DB_FILE" "SELECT COUNT(*) FROM threat_intel WHERE last_seen >= datetime('now', '-24 hours');")
+    local high_confidence=$(sqlite3 "$DB_FILE" "SELECT COUNT(*) FROM threat_intel WHERE confidence >= 80;")
+    
+    cat > "$BYTEFENSE_HOME/logs/intel-report.txt" << EOF
+=== REPORTE DE THREAT INTELLIGENCE ===
+Fecha: $(date)
+Total de indicadores: $total_indicators
+Indicadores recientes (24h): $recent_indicators
+Alta confianza (>80%): $high_confidence
+
+Fuentes activas:
+EOF
+    
+    for source in "${THREAT_SOURCES[@]}"; do
+        local source_name=$(basename "$source" .txt)
+        local source_count=$(sqlite3 "$DB_FILE" "SELECT COUNT(*) FROM threat_intel WHERE source='$source_name';")
+        echo "- $source_name: $source_count indicadores" >> "$BYTEFENSE_HOME/logs/intel-report.txt"
+    done
+    
+    log "📋 Reporte generado: $BYTEFENSE_HOME/logs/intel-report.txt"
+}
+
+# Función principal
+main() {
+    log "🛡️  Iniciando actualización de threat intelligence"
+    
+    # Verificar base de datos
+    if [[ ! -f "$DB_FILE" ]]; then
+        log "❌ Base de datos no encontrada: $DB_FILE"
+        exit 1
+    fi
+    
+    local success_count=0
+    local total_sources=${#THREAT_SOURCES[@]}
+    
+    # Procesar cada fuente
+    for source in "${THREAT_SOURCES[@]}"; do
+        if process_threat_source "$source"; then
+            ((success_count++))
+        fi
+        sleep 2  # Pausa entre descargas
+    done
+    
+    log "📈 Procesadas $success_count/$total_sources fuentes exitosamente"
+    
+    # Limpiar datos antiguos
+    cleanup_old_data
+    
+    # Aplicar reglas de firewall
+    apply_firewall_rules
+    
+    # Generar reporte
+    generate_report
+    
+    # Limpiar archivos temporales
+    rm -rf "$TEMP_DIR"
+    
+    log "✅ Actualización de threat intelligence completada"
+}
+
+# Manejo de señales
+trap 'log "🛑 Actualización interrumpida"; rm -rf "$TEMP_DIR"; exit 1' SIGINT SIGTERM
+
+# Ejecutar
+main "$@"

@@ -1,0 +1,5 @@
+c:\proyectos\bytefense\
+├── dist\                    # ← Carpeta nueva
+│   └── bytefense-os_1.0.0_all.deb  # ← Tu archivo .deb
+├── debian\                  # ← Carpeta temporal de construcción
+└── ... (resto de archivos)

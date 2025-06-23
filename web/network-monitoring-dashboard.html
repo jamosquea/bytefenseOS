@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bytefense OS - Monitor de Red Avanzado</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Courier New', monospace;
+            background: #000;
+            color: #00ff00;
+            overflow-x: hidden;
+        }
+        
+        .dashboard-container {
+            display: grid;
+            grid-template-columns: 250px 1fr;
+            height: 100vh;
+        }
+        
+        .sidebar {
+            background: rgba(0, 0, 0, 0.95);
+            border-right: 2px solid #00ff00;
+            padding: 20px;
+        }
+        
+        .main-content {
+            padding: 20px;
+            overflow-y: auto;
+        }
+        
+        .section {
+            background: rgba(0, 0, 0, 0.9);
+            border: 1px solid #00ff00;
+            border-radius: 5px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .section-title {
+            color: #00ff00;
+            font-size: 1.2em;
+            margin-bottom: 15px;
+            text-shadow: 0 0 5px #00ff00;
+        }
+        
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        .grid-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px;
+        }
+        
+        .node-card {
+            background: rgba(0, 20, 0, 0.8);
+            border: 1px solid #00ff00;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 10px;
+            transition: all 0.3s;
+        }
+        
+        .node-card:hover {
+            box-shadow: 0 0 15px #00ff00;
+            transform: translateY(-2px);
+        }
+        
+        .risk-high { border-color: #ff0000; color: #ff0000; }
+        .risk-medium { border-color: #ffff00; color: #ffff00; }
+        .risk-low { border-color: #00ff00; color: #00ff00; }
+        
+        .topology-container {
+            height: 400px;
+            border: 1px solid #00ff00;
+            border-radius: 5px;
+            position: relative;
+        }
+        
+        .chart-container {
+            height: 300px;
+            position: relative;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: rgba(0, 20, 0, 0.8);
+            border: 1px solid #00ff00;
+            border-radius: 5px;
+            padding: 15px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #ffffff;
+        }
+        
+        .alert-item {
+            background: rgba(255, 0, 0, 0.1);
+            border: 1px solid #ff0000;
+            border-radius: 5px;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .site-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px;
+            border-bottom: 1px solid #333;
+        }
+        
+        .category-tag {
+            background: rgba(0, 255, 0, 0.2);
+            border: 1px solid #00ff00;
+            border-radius: 3px;
+            padding: 2px 8px;
+            font-size: 0.8em;
+        }
+        
+        .app-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .app-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            border-bottom: 1px solid #333;
+        }
+        
+        .refresh-btn {
+            background: transparent;
+            border: 1px solid #00ff00;
+            color: #00ff00;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .refresh-btn:hover {
+            background: rgba(0, 255, 0, 0.1);
+            box-shadow: 0 0 10px #00ff00;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #ffff00;
+        }
+        
+        .error {
+            color: #ff0000;
+            text-align: center;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <div class="sidebar">
+            <h2 style="color: #00ff00; text-align: center; margin-bottom: 30px;">Bytefense OS</h2>
+            <nav>
+                <div style="margin-bottom: 20px;">
+                    <button class="refresh-btn" onclick="refreshAllData()">🔄 Actualizar Todo</button>
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label style="color: #00ff00;">Intervalo de actualización:</label>
+                    <select id="refreshInterval" style="background: #000; color: #00ff00; border: 1px solid #00ff00; margin-top: 5px;">
+                        <option value="5000">5 segundos</option>
+                        <option value="10000" selected>10 segundos</option>
+                        <option value="30000">30 segundos</option>
+                        <option value="60000">1 minuto</option>
+                    </select>
+                </div>
+                <div>
+                    <h3 style="color: #00ff00; margin-bottom: 10px;">Filtros</h3>
+                    <label style="color: #00ff00;">
+                        <input type="checkbox" id="showHighRisk" checked> Alto Riesgo
+                    </label><br>
+                    <label style="color: #00ff00;">
+                        <input type="checkbox" id="showMediumRisk" checked> Riesgo Medio
+                    </label><br>
+                    <label style="color: #00ff00;">
+                        <input type="checkbox" id="showLowRisk" checked> Bajo Riesgo
+                    </label>
+                </div>
+            </nav>
+        </div>
+        
+        <div class="main-content">
+            <!-- Estadísticas Generales -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="totalNodes">-</div>
+                    <div>Nodos Activos</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="totalApps">-</div>
+                    <div>Aplicaciones</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="totalSites">-</div>
+                    <div>Sitios Visitados</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="alertsCount">-</div>
+                    <div>Alertas Activas</div>
+                </div>
+            </div>
+            
+            <!-- Topología de Red -->
+            <div class="section">
+                <h3 class="section-title">🌐 Topología de Red</h3>
+                <div class="topology-container" id="networkTopology">
+                    <div class="loading">Cargando topología de red...</div>
+                </div>
+            </div>
+            
+            <div class="grid-2">
+                <!-- Nodos de Red -->
+                <div class="section">
+                    <h3 class="section-title">💻 Nodos de Red</h3>
+                    <div id="networkNodes">
+                        <div class="loading">Cargando nodos...</div>
+                    </div>
+                </div>
+                
+                <!-- Aplicaciones por Nodo -->
+                <div class="section">
+                    <h3 class="section-title">📱 Aplicaciones Activas</h3>
+                    <div id="nodeApplications">
+                        <div class="loading">Cargando aplicaciones...</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Análisis de Sitios Web -->
+            <div class="section">
+                <h3 class="section-title">🌍 Sitios Web Visitados</h3>
+                <div class="grid-2">
+                    <div>
+                        <h4 style="color: #00ff00; margin-bottom: 10px;">Actividad Reciente</h4>
+                        <div id="visitedSites" style="max-height: 300px; overflow-y: auto;">
+                            <div class="loading">Cargando sitios...</div>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 style="color: #00ff00; margin-bottom: 10px;">Categorías</h4>
+                        <div class="chart-container">
+                            <canvas id="categoriesChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Insights de IA -->
+            <div class="section">
+                <h3 class="section-title">🤖 Análisis de IA</h3>
+                <div class="grid-3">
+                    <div>
+                        <h4 style="color: #00ff00; margin-bottom: 10px;">Anomalías Detectadas</h4>
+                        <div id="aiAnomalies">
+                            <div class="loading">Analizando...</div>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 style="color: #00ff00; margin-bottom: 10px;">Patrones Identificados</h4>
+                        <div id="aiPatterns">
+                            <div class="loading">Analizando...</div>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 style="color: #00ff00; margin-bottom: 10px;">Recomendaciones</h4>
+                        <div id="aiRecommendations">
+                            <div class="loading">Generando...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Alertas de Seguridad -->
+            <div class="section">
+                <h3 class="section-title">⚠️ Alertas de Seguridad</h3>
+                <div id="securityAlerts">
+                    <div class="loading">Cargando alertas...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let refreshInterval;
+        let charts = {};
+        
+        // Inicializar dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            refreshAllData();
+            setupAutoRefresh();
+            setupEventListeners();
+        });
+        
+        function setupAutoRefresh() {
+            const intervalSelect = document.getElementById('refreshInterval');
+            const interval = parseInt(intervalSelect.value);
+            
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+            }
+            
+            refreshInterval = setInterval(refreshAllData, interval);
+        }
+        
+        function setupEventListeners() {
+            document.getElementById('refreshInterval').addEventListener('change', setupAutoRefresh);
+            
+            // Filtros
+            ['showHighRisk', 'showMediumRisk', 'showLowRisk'].forEach(id => {
+                document.getElementById(id).addEventListener('change', applyFilters);
+            });
+        }
+        
+        async function refreshAllData() {
+            try {
+                const response = await fetch('/api/network/dashboard');
+                const data = await response.json();
+                
+                updateStatistics(data);
+                updateNetworkNodes(data.nodes);
+                updateVisitedSites(data.visited_sites);
+                updateAIInsights(data.ai_insights);
+                updateNetworkTopology(data.topology);
+                updateSecurityAlerts(data.alerts);
+                
+            } catch (error) {
+                console.error('Error refreshing data:', error);
+                showError('Error al cargar datos del servidor');
+            }
+        }
+        
+        function updateStatistics(data) {
+            document.getElementById('totalNodes').textContent = data.nodes?.length || 0;
+            document.getElementById('totalApps').textContent = 
+                data.nodes?.reduce((sum, node) => sum + (node.apps?.length || 0), 0) || 0;
+            document.getElementById('totalSites').textContent = data.visited_sites?.length || 0;
+            document.getElementById('alertsCount').textContent = data.alerts?.length || 0;
+        }
+        
+        function updateNetworkNodes(nodes) {
+            const container = document.getElementById('networkNodes');
+            
+            if (!nodes || nodes.length === 0) {
+                container.innerHTML = '<div class="error">No se encontraron nodos</div>';
+                return;
+            }
+            
+            container.innerHTML = nodes.map(node => `
+                <div class="node-card risk-${node.risk_level}">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <strong>${node.name || node.ip}</strong><br>
+                            <small>${node.ip} (${node.type})</small>
+                        </div>
+                        <div style="text-align: right;">
+                            <div>Apps: ${node.apps?.length || 0}</div>
+                            <div>Riesgo: ${node.risk_level}</div>
+                        </div>
+                    </div>
+                    <div class="app-list" style="margin-top: 10px;">
+                        ${(node.apps || []).slice(0, 5).map(app => `
+                            <div class="app-item">
+                                <span>${app.name}</span>
+                                <span style="color: #888;">${app.connections} conn</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function updateVisitedSites(sites) {
+            const container = document.getElementById('visitedSites');
+            
+            if (!sites || sites.length === 0) {
+                container.innerHTML = '<div class="error">No hay datos de sitios visitados</div>';
+                return;
+            }
+            
+            container.innerHTML = sites.slice(0, 20).map(site => `
+                <div class="site-item risk-${site.risk_level}">
+                    <div>
+                        <strong>${site.domain}</strong><br>
+                        <small>${site.client_ip} - ${new Date(site.timestamp).toLocaleTimeString()}</small>
+                    </div>
+                    <div>
+                        <span class="category-tag">${site.category}</span>
+                    </div>
+                </div>
+            `).join('');
+            
+            // Actualizar gráfico de categorías
+            updateCategoriesChart(sites);
+        }
+        
+        function updateCategoriesChart(sites) {
+            const ctx = document.getElementById('categoriesChart').getContext('2d');
+            
+            // Contar categorías
+            const categories = {};
+            sites.forEach(site => {
+                categories[site.category] = (categories[site.category] || 0) + 1;
+            });
+            
+            if (charts.categories) {
+                charts.categories.destroy();
+            }
+            
+            charts.categories = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(categories),
+                    datasets: [{
+                        data: Object.values(categories),
+                        backgroundColor: [
+                            '#00ff00', '#ffff00', '#ff0000', '#0000ff', 
+                            '#ff00ff', '#00ffff', '#ffa500', '#800080'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: '#00ff00'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function updateAIInsights(insights) {
+            // Anomalías
+            const anomaliesContainer = document.getElementById('aiAnomalies');
+            if (insights?.anomalies?.length > 0) {
+                anomaliesContainer.innerHTML = insights.anomalies.map(anomaly => `
+                    <div class="alert-item">
+                        <strong>Anomalía detectada</strong><br>
+                        <small>Score: ${anomaly.score?.toFixed(2)} - ${anomaly.description}</small>
+                    </div>
+                `).join('');
+            } else {
+                anomaliesContainer.innerHTML = '<div style="color: #00ff00;">✅ No se detectaron anomalías</div>';
+            }
+            
+            // Patrones
+            const patternsContainer = document.getElementById('aiPatterns');
+            if (insights?.patterns?.length > 0) {
+                patternsContainer.innerHTML = insights.patterns.map(pattern => `
+                    <div style="padding: 5px 0; border-bottom: 1px solid #333;">
+                        <strong>${pattern.type}</strong><br>
+                        <small>${pattern.description}</small>
+                    </div>
+                `).join('');
+            } else {
+                patternsContainer.innerHTML = '<div style="color: #888;">No hay patrones identificados</div>';
+            }
+            
+            // Recomendaciones
+            const recommendationsContainer = document.getElementById('aiRecommendations');
+            if (insights?.recommendations?.length > 0) {
+                recommendationsContainer.innerHTML = insights.recommendations.map(rec => `
+                    <div style="padding: 5px 0; border-bottom: 1px solid #333;">
+                        <strong>${rec.priority}</strong><br>
+                        <small>${rec.description}</small>
+                    </div>
+                `).join('');
+            } else {
+                recommendationsContainer.innerHTML = '<div style="color: #888;">No hay recomendaciones</div>';
+            }
+        }
+        
+        function updateNetworkTopology(topology) {
+            const container = document.getElementById('networkTopology');
+            
+            if (!topology?.nodes?.length) {
+                container.innerHTML = '<div class="error">No hay datos de topología</div>';
+                return;
+            }
+            
+            // Crear visualización simple de topología
+            container.innerHTML = `
+                <div style="padding: 20px; text-align: center;">
+                    <div style="color: #00ff00; margin-bottom: 20px;">
+                        Red detectada: ${topology.nodes.length} nodos, ${topology.connections?.length || 0} conexiones
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 10px;">
+                        ${topology.nodes.map(node => `
+                            <div style="
+                                border: 2px solid ${node.risk_level === 'high' ? '#ff0000' : node.risk_level === 'medium' ? '#ffff00' : '#00ff00'};
+                                border-radius: 50%;
+                                width: 60px;
+                                height: 60px;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                font-size: 0.8em;
+                                background: rgba(0, 0, 0, 0.8);
+                            ">
+                                ${node.type === 'local' ? '🖥️' : '📱'}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+        
+        function updateSecurityAlerts(alerts) {
+            const container = document.getElementById('securityAlerts');
+            
+            if (!alerts || alerts.length === 0) {
+                container.innerHTML = '<div style="color: #00ff00;">✅ No hay alertas de seguridad activas</div>';
+                return;
+            }
+            
+            container.innerHTML = alerts.map(alert => `
+                <div class="alert-item">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <strong>${alert.title}</strong><br>
+                            <small>${alert.description}</small>
+                        </div>
+                        <div style="color: ${alert.severity === 'high' ? '#ff0000' : alert.severity === 'medium' ? '#ffff00' : '#00ff00'};">
+                            ${alert.severity.toUpperCase()}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function applyFilters() {
+            // Implementar filtros basados en checkboxes
+            refreshAllData();
+        }
+        
+        function showError(message) {
+            console.error(message);
+            // Mostrar error en la interfaz si es necesario
+        }
+    </script>
+</body>
+</html>

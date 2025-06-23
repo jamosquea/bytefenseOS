@@ -1,0 +1,98 @@
+#!/bin/bash
+# Bytefense OS - RustDesk Linux Installer
+
+set -e
+
+CONFIG="$1"
+PASSWORD="$2"
+
+echo "🔍 Obteniendo última versión de RustDesk..."
+
+# Obtener la última versión desde GitHub API
+VERSION=$(curl -s "https://api.github.com/repos/rustdesk/rustdesk/releases/latest" | grep '"tag_name":' | cut -d '"' -f4 | tr -d 'v')
+
+if [ -z "$VERSION" ]; then
+    echo "❌ Error: No se pudo obtener la versión de RustDesk"
+    exit 1
+fi
+
+echo "📦 Versión detectada: $VERSION"
+
+# Detectar arquitectura
+ARCH=$(uname -m)
+case $ARCH in
+    x86_64)
+        FILE="rustdesk-${VERSION}-x86_64.deb"
+        ;;
+    aarch64|arm64)
+        FILE="rustdesk-${VERSION}-aarch64.deb"
+        ;;
+    *)
+        echo "❌ Arquitectura no soportada: $ARCH"
+        exit 1
+        ;;
+esac
+
+echo "⬇️ Descargando RustDesk $VERSION para $ARCH..."
+DOWNLOAD_URL="https://github.com/rustdesk/rustdesk/releases/download/${VERSION}/${FILE}"
+
+# Descargar con verificación
+if ! wget -q --show-progress "$DOWNLOAD_URL"; then
+    echo "❌ Error al descargar RustDesk desde $DOWNLOAD_URL"
+    exit 1
+fi
+
+echo "📦 Instalando RustDesk..."
+sudo dpkg -i "$FILE" || {
+    echo "🔧 Resolviendo dependencias..."
+    sudo apt-get update
+    sudo apt-get install -f -y
+    sudo dpkg -i "$FILE"
+}
+
+# Limpiar archivo descargado
+rm -f "$FILE"
+
+echo "⚙️ Configurando RustDesk para Bytefense..."
+
+# Configurar RustDesk
+if [ -n "$CONFIG" ]; then
+    rustdesk --config "$CONFIG" || echo "⚠️ Advertencia: No se pudo aplicar configuración personalizada"
+fi
+
+if [ -n "$PASSWORD" ]; then
+    rustdesk --password "$PASSWORD" || echo "⚠️ Advertencia: No se pudo establecer contraseña"
+fi
+
+# Obtener ID de RustDesk
+echo "==============================================="
+echo "🆔 RustDesk ID: $(rustdesk --get-id 2>/dev/null || echo 'No disponible')"
+echo "🔑 Password: $PASSWORD"
+echo "🌐 Configuración: $CONFIG"
+echo "==============================================="
+
+# Crear servicio systemd para Bytefense
+echo "🔧 Creando servicio systemd..."
+sudo tee /etc/systemd/system/bytefense-rustdesk.service > /dev/null << EOF
+[Unit]
+Description=Bytefense RustDesk Remote Access
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/rustdesk --service
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable bytefense-rustdesk.service
+
+echo "🚀 Iniciando RustDesk en segundo plano..."
+rustdesk &
+
+echo "✅ RustDesk instalado y configurado exitosamente para Bytefense OS"

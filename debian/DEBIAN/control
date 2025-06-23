@@ -1,13 +1,14 @@
-Package: bytefense-os
+﻿Package: bytefense-os
 Version: 1.0.0
-Section: net
+Section: security
 Priority: optional
-Architecture: all
-Depends: curl, wget, git, ufw, sqlite3, lighttpd, python3, python3-pip, python3-flask, python3-jwt, python3-bcrypt, python3-pyotp, python3-qrcode, python3-requests, wireguard, wireguard-tools, qrencode, dnsutils, net-tools, htop, fail2ban, systemd
-Maintainer: Bytefense Team <admin@bytefense.org>
-Description: Sistema de Defensa Digital Distribuida
- Bytefense OS es un sistema autónomo de defensa digital que puede ejecutarse
- en Raspberry Pi 5, VMs o servidores Linux. Incluye filtrado DNS con Pi-hole,
- VPN segura con WireGuard, monitoreo de amenazas en tiempo real, firewall
- inteligente con UFW y panel de control web intuitivo.
- Homepage: https://github.com/bytefense/bytefense-os
+Architecture: amd64
+Depends: python3, python3-pip, iptables, systemd
+Maintainer: Bytefense Team <info@bytefense.com>
+Description: Bytefense OS - Sistema de Seguridad Integral
+ Bytefense OS es una soluciÃ³n completa de seguridad que incluye:
+  - Firewall avanzado con IA
+  - Sistema de detecciÃ³n de intrusos (IDS)
+  - Monitoreo de red en tiempo real
+  - Dashboard web interactivo
+  - API REST para integraciÃ³n

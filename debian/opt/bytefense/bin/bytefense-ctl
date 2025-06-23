@@ -1,0 +1,749 @@
+#!/bin/bash
+# Bytefense OS - Controlador Principal Modular
+
+BYTEFENSE_HOME="/opt/bytefense"
+CONFIG_FILE="$BYTEFENSE_HOME/system/bytefense.conf"
+DB_FILE="$BYTEFENSE_HOME/intel/threats.db"
+MODULES_DIR="$BYTEFENSE_HOME/modules"
+
+# Cargar configuración
+if [ -f "$CONFIG_FILE" ]; then
+    source "$CONFIG_FILE"
+fi
+
+show_help() {
+    cat << EOF
+🛡️  Bytefense OS - Controlador Principal Modular
+
+Uso: bytefense-ctl <comando> [opciones]
+
+Comandos Generales:
+  init                 Inicializar nodo (configuración inicial)
+  status              Mostrar estado del sistema y módulos
+  modules list        Listar módulos disponibles e instalados
+  modules install <módulo>  Instalar módulo específico
+  modules remove <módulo>   Remover módulo específico
+  update              Actualizar listas de amenazas
+  help                Mostrar esta ayuda
+
+Comandos de Inteligencia (módulo intel):
+  intel show          Mostrar amenazas registradas
+  intel add <ip>      Agregar IP a lista negra
+  intel update        Actualizar feeds de amenazas
+
+Comandos de Sigilo:
+  sigilo on|off       Activar/desactivar modo sigilo
+
+Comandos VPN (módulo vpn):
+  vpn setup           Configurar WireGuard
+  vpn qr              Mostrar QR para cliente móvil
+  vpn add-client --name=<nombre>  Agregar cliente WireGuard
+  vpn show-client <nombre>        Mostrar config de cliente
+
+Comandos de Red (módulo reticularium):
+  register <master>   Registrar nodo en maestro
+  nodes list          Listar nodos registrados (solo maestro)
+  nodes status        Mostrar estado de todos los nodos
+  heartbeat           Enviar heartbeat al maestro (satélites)
+  peers add <ip>      Agregar peer a red Reticularium
+  peers list          Listar peers conectados
+
+Comandos Honeypot (módulo honeypot):
+  honeypot status     Estado del honeypot
+  honeypot logs       Ver logs del honeypot
+
+Comandos Pi-hole (módulo pi-hole):
+  pihole sync         Sincronizar listas con Pi-hole
+  pihole status       Estado de Pi-hole
+
+Ejemplos:
+  bytefense-ctl modules list
+  bytefense-ctl modules install vpn
+  bytefense-ctl vpn setup
+  bytefense-ctl peers add 192.168.1.100
+
+EOF
+}
+
+# Verificar si un módulo está instalado
+module_installed() {
+    local module=$1
+    [ -f "$MODULES_DIR/$module.installed" ]
+}
+
+# Listar módulos
+list_modules() {
+    echo "📦 Estado de módulos Bytefense:"
+    echo ""
+    
+    local modules=("core" "pi-hole" "vpn" "intel" "honeypot" "reticularium")
+    
+    for module in "${modules[@]}"; do
+        if module_installed "$module"; then
+            echo "  ✅ $module - INSTALADO"
+        else
+            echo "  ❌ $module - NO INSTALADO"
+        fi
+    done
+    
+    echo ""
+}
+
+# Instalar módulo individual
+install_single_module() {
+    local module=$1
+    
+    if module_installed "$module"; then
+        echo "⚠️  El módulo $module ya está instalado"
+        return 0
+    fi
+    
+    echo "🔧 Instalando módulo: $module"
+    
+    # Ejecutar instalador específico del módulo
+    case $module in
+        "pi-hole")
+            bash -c "$(curl -sSL https://raw.githubusercontent.com/bytefense/installer/main/modules/pihole.sh)"
+            ;;
+        "vpn")
+            bash -c "$(curl -sSL https://raw.githubusercontent.com/bytefense/installer/main/modules/vpn.sh)"
+            ;;
+        "intel")
+            bash -c "$(curl -sSL https://raw.githubusercontent.com/bytefense/installer/main/modules/intel.sh)"
+            ;;
+        "honeypot")
+            bash -c "$(curl -sSL https://raw.githubusercontent.com/bytefense/installer/main/modules/honeypot.sh)"
+            ;;
+        "reticularium")
+            bash -c "$(curl -sSL https://raw.githubusercontent.com/bytefense/installer/main/modules/reticularium.sh)"
+            ;;
+        *)
+            echo "❌ Módulo desconocido: $module"
+            return 1
+            ;;
+    esac
+    
+    echo "✅ Módulo $module instalado correctamente"
+}
+
+# Remover módulo
+remove_module() {
+    local module=$1
+    
+    if [ "$module" = "core" ]; then
+        echo "❌ No se puede remover el módulo core"
+        return 1
+    fi
+    
+    if ! module_installed "$module"; then
+        echo "⚠️  El módulo $module no está instalado"
+        return 0
+    fi
+    
+    echo "🗑️  Removiendo módulo: $module"
+    
+    case $module in
+        "pi-hole")
+            systemctl stop pihole-FTL 2>/dev/null || true
+            systemctl disable pihole-FTL 2>/dev/null || true
+            apt remove -y pi-hole 2>/dev/null || true
+            ;;
+        "vpn")
+            systemctl stop wg-quick@wg0 2>/dev/null || true
+            systemctl disable wg-quick@wg0 2>/dev/null || true
+            rm -f /etc/wireguard/wg0.conf
+            ;;
+        "honeypot")
+            systemctl stop bytefense-honeypot 2>/dev/null || true
+            systemctl disable bytefense-honeypot 2>/dev/null || true
+            rm -f /etc/systemd/system/bytefense-honeypot.service
+            ;;
+        "reticularium")
+            systemctl stop bytefense-reticularium 2>/dev/null || true
+            systemctl disable bytefense-reticularium 2>/dev/null || true
+            rm -f /etc/systemd/system/bytefense-reticularium.service
+            ;;
+    esac
+    
+    # Remover marca de instalación
+    rm -f "$MODULES_DIR/$module.installed"
+    
+    systemctl daemon-reload
+    
+    echo "✅ Módulo $module removido correctamente"
+}
+
+# Mostrar estado del sistema
+show_status() {
+    echo "🛡️  Estado de Bytefense OS"
+    echo "========================="
+    echo ""
+    
+    # Verificar base de datos
+    if [ ! -f "$DB_FILE" ]; then
+        echo "❌ Base de datos no encontrada. Ejecuta: bytefense-ctl init"
+        return 1
+    fi
+    
+    # Estadísticas básicas
+    echo "📊 Estadísticas:"
+    local blocked_ips=$(sqlite3 "$DB_FILE" "SELECT COUNT(*) FROM blocked_ips;" 2>/dev/null || echo "0")
+    # Línea 246 - Corregir de 'timestamp' a 'date'
+    local recent_events=$(sqlite3 "$DB_FILE" "SELECT COUNT(*) FROM events WHERE date > datetime('now', '-24 hours');" 2>/dev/null || echo "0")
+    
+    echo "  🚫 IPs bloqueadas: $blocked_ips"
+    echo "  📝 Eventos recientes (24h): $recent_events"
+    echo ""
+    
+    # Información del nodo
+    if [ -f "$CONFIG_FILE" ]; then
+        echo "📋 Información del Nodo:"
+        echo "  Nombre: $NODE_NAME"
+        echo "  Tipo: $NODE_TYPE"
+        echo "  ID: $NODE_ID"
+        if [ "$NODE_TYPE" = "satellite" ] && [ -n "$MASTER_IP" ]; then
+            echo "  Maestro: $MASTER_IP"
+        fi
+        echo ""
+    fi
+    
+    # Estado de módulos
+    list_modules
+    
+    # Estado de servicios
+    echo "🔧 Estado de Servicios:"
+    local services=("bytefense-dashboard" "bytefense-watch")
+    
+    if module_installed "honeypot"; then
+        services+=("bytefense-honeypot")
+    fi
+    
+    if module_installed "reticularium"; then
+        services+=("bytefense-reticularium")
+    fi
+    
+    if module_installed "vpn"; then
+        services+=("wg-quick@wg0")
+    fi
+    
+    if module_installed "pi-hole"; then
+        services+=("pihole-FTL")
+    fi
+    
+    for service in "${services[@]}"; do
+        if systemctl is-active --quiet "$service" 2>/dev/null; then
+            echo "  ✅ $service - ACTIVO"
+        else
+            echo "  ❌ $service - INACTIVO"
+        fi
+    done
+    
+    echo ""
+    
+    # Estadísticas de amenazas (si intel está instalado)
+    if module_installed "intel" && [ -f "$DB_FILE" ]; then
+        echo "🧠 Estadísticas de Inteligencia:"
+        local blocked_ips=$(sqlite3 "$DB_FILE" "SELECT COUNT(*) FROM blocked_ips;" 2>/dev/null || echo "0")
+        local recent_events=$(sqlite3 "$DB_FILE" "SELECT COUNT(*) FROM events WHERE timestamp > datetime('now', '-24 hours');" 2>/dev/null || echo "0")
+        echo "  IPs Bloqueadas: $blocked_ips"
+        echo "  Eventos (24h): $recent_events"
+        echo ""
+    fi
+    
+    # Información de red
+    echo "🌐 Información de Red:"
+    echo "  IP Local: $(hostname -I | awk '{print $1}')"
+    echo "  Dashboard: http://$(hostname -I | awk '{print $1}'):8080"
+    
+    if module_installed "pi-hole"; then
+        echo "  Pi-hole: http://$(hostname -I | awk '{print $1}'):8081/admin"
+    fi
+    
+    echo ""
+}
+
+init_node() {
+    echo "🛡️  Inicializando nodo Bytefense..."
+    
+    # Procesar argumentos
+    local node_name=""
+    local node_type=""
+    local master_ip=""
+    
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --name=*)
+                node_name="${1#*=}"
+                shift
+                ;;
+            --type=*)
+                node_type="${1#*=}"
+                shift
+                ;;
+            --master=*)
+                master_ip="${1#*=}"
+                shift
+                ;;
+            *)
+                shift
+                ;;
+        esac
+    done
+    
+    # Solicitar configuración básica si no se proporcionó
+    if [ -z "$node_name" ]; then
+        read -p "Nombre del nodo [$(hostname)]: " node_name
+        node_name=${node_name:-$(hostname)}
+    fi
+    
+    if [ -z "$node_type" ]; then
+        read -p "Modo (master/satellite) [satellite]: " node_type
+        node_type=${node_type:-satellite}
+    fi
+    
+    if [ "$node_type" = "satellite" ] && [ -z "$master_ip" ]; then
+        read -p "IP del nodo maestro: " master_ip
+    fi
+    
+    # Generar ID único del nodo
+    local node_id=$(openssl rand -hex 16)
+    
+    # Crear archivo de configuración
+    cat > "$CONFIG_FILE" << EOF
+# Configuración Bytefense OS
+NODE_ID="$node_id"
+NODE_NAME="$node_name"
+NODE_TYPE="$node_type"
+MASTER_IP="$master_ip"
+CREATED_DATE="$(date)"
+VERSION="1.0.0"
+API_PORT="8080"
+EOF
+    
+    # Actualizar configuración en base de datos
+    sqlite3 "$DB_FILE" "INSERT OR REPLACE INTO node_config (key, value) VALUES ('node_id', '$node_id');"
+    sqlite3 "$DB_FILE" "INSERT OR REPLACE INTO node_config (key, value) VALUES ('node_name', '$node_name');"
+    sqlite3 "$DB_FILE" "INSERT OR REPLACE INTO node_config (key, value) VALUES ('node_type', '$node_type');"
+    
+    echo "✅ Nodo inicializado como: $node_name ($node_type)"
+    echo "🆔 ID del nodo: $node_id"
+    
+    # Configurar hostname si es diferente
+    if [ "$node_name" != "$(hostname)" ]; then
+        echo "$node_name" > /etc/hostname
+        hostnamectl set-hostname "$node_name"
+        echo "🏷️  Hostname actualizado a: $node_name"
+    fi
+    
+    # Auto-registrar si es satélite
+    if [ "$node_type" = "satellite" ] && [ -n "$master_ip" ]; then
+        echo "📡 Registrando automáticamente en el maestro..."
+        register_node "$master_ip"
+    fi
+}
+
+register_node() {
+    local master_ip="$1"
+    
+    if [ -z "$master_ip" ]; then
+        echo "❌ Debe especificar la IP del nodo maestro"
+        return 1
+    fi
+    
+    # Cargar configuración del nodo
+    source "$CONFIG_FILE"
+    
+    local local_ip=$(hostname -I | awk '{print $1}')
+    local public_ip=$(curl -s ifconfig.me 2>/dev/null || echo "unknown")
+    
+    echo "📡 Registrando nodo en maestro $master_ip..."
+    
+    # Crear payload JSON
+    local payload=$(cat << EOF
+{
+    "node_id": "$NODE_ID",
+    "node_name": "$NODE_NAME",
+    "node_type": "$NODE_TYPE",
+    "ip_address": "$local_ip",
+    "public_ip": "$public_ip",
+    "port": $API_PORT,
+    "version": "$VERSION"
+}
+EOF
+)
+    
+    # Enviar registro al maestro
+    local response=$(curl -s -X POST \
+        -H "Content-Type: application/json" \
+        -d "$payload" \
+        "http://$master_ip:8080/api/register" 2>/dev/null)
+    
+    if [ $? -eq 0 ]; then
+        echo "✅ Nodo registrado exitosamente en el maestro"
+        
+        # Actualizar configuración con el maestro
+        sed -i "s/MASTER_IP=.*/MASTER_IP=\"$master_ip\"/" "$CONFIG_FILE"
+        
+        # Programar heartbeat automático
+        setup_heartbeat
+    else
+        echo "❌ Error al registrar nodo en el maestro"
+        echo "   Verifique que el maestro esté accesible en $master_ip:8080"
+    fi
+}
+
+list_nodes() {
+    echo "🌐 Nodos Registrados"
+    echo "==================="
+    
+    if [ -f "$DB_FILE" ]; then
+        # Verificar si hay nodos registrados
+        local count=$(sqlite3 "$DB_FILE" "SELECT COUNT(*) FROM registered_nodes;")
+        
+        if [ "$count" -eq 0 ]; then
+            echo "📭 No hay nodos registrados"
+            return
+        fi
+        
+        echo "📊 Total de nodos: $count"
+        echo ""
+        
+        # Mostrar nodos con formato de tabla
+        printf "%-20s %-15s %-12s %-15s %-10s %-20s\n" "NOMBRE" "IP" "TIPO" "IP PÚBLICA" "ESTADO" "ÚLTIMO HEARTBEAT"
+        printf "%-20s %-15s %-12s %-15s %-10s %-20s\n" "--------------------" "---------------" "------------" "---------------" "----------" "--------------------"
+        
+        sqlite3 "$DB_FILE" "
+SELECT 
+    node_name,
+    ip_address,
+    node_type,
+    COALESCE(public_ip, 'N/A'),
+    status,
+    datetime(last_heartbeat, 'localtime')
+FROM registered_nodes 
+ORDER BY last_heartbeat DESC;
+" | while IFS='|' read -r name ip type public_ip status heartbeat; do
+            printf "%-20s %-15s %-12s %-15s %-10s %-20s\n" "$name" "$ip" "$type" "$public_ip" "$status" "$heartbeat"
+        done
+        
+        echo ""
+        echo "📈 Estadísticas:"
+        sqlite3 "$DB_FILE" "SELECT 'Online: ' || COUNT(*) FROM registered_nodes WHERE status = 'online';"
+        sqlite3 "$DB_FILE" "SELECT 'Offline: ' || COUNT(*) FROM registered_nodes WHERE status = 'offline';"
+        
+        # Mostrar nodos que no han enviado heartbeat en más de 5 minutos
+        local stale_nodes=$(sqlite3 "$DB_FILE" "SELECT COUNT(*) FROM registered_nodes WHERE datetime(last_heartbeat) < datetime('now', '-5 minutes');")
+        if [ "$stale_nodes" -gt 0 ]; then
+            echo "⚠️  Nodos sin heartbeat reciente: $stale_nodes"
+        fi
+    else
+        echo "❌ Base de datos no encontrada"
+    fi
+}
+
+show_nodes_status() {
+    echo "📊 Estado Detallado de Nodos"
+    echo "============================"
+    
+    if [ -f "$DB_FILE" ]; then
+        sqlite3 "$DB_FILE" "
+SELECT 
+    '🖥️  Nodo: ' || node_name || ' (' || node_id || ')',
+    '📍 IP: ' || ip_address || ' | Pública: ' || COALESCE(public_ip, 'N/A'),
+    '🔧 Tipo: ' || node_type || ' | Puerto: ' || port,
+    '📊 Estado: ' || 
+        CASE status 
+            WHEN 'online' THEN '✅ Online'
+            WHEN 'offline' THEN '❌ Offline'
+            ELSE '⚠️ ' || status
+        END,
+    '⏰ Último heartbeat: ' || datetime(last_heartbeat, 'localtime'),
+    '📅 Registrado: ' || datetime(first_registered, 'localtime'),
+    ''
+FROM registered_nodes 
+ORDER BY status DESC, last_heartbeat DESC;
+" | sed 's/|/\n/g'
+    else
+        echo "❌ Base de datos no encontrada"
+    fi
+}
+
+send_heartbeat() {
+    # Solo para nodos satélite
+    source "$CONFIG_FILE"
+    
+    if [ "$NODE_TYPE" != "satellite" ] || [ -z "$MASTER_IP" ]; then
+        return
+    fi
+    
+    local local_ip=$(hostname -I | awk '{print $1}')
+    local load_avg=$(uptime | awk -F'load average:' '{print $2}' | awk '{print $1}' | tr -d ',')
+    local disk_usage=$(df / | tail -1 | awk '{print $5}' | tr -d '%')
+    local memory_usage=$(free | grep Mem | awk '{printf "%.1f", $3/$2 * 100.0}')
+    
+    # Crear payload con métricas del sistema
+    local payload=$(cat << EOF
+{
+    "node_id": "$NODE_ID",
+    "status": "online",
+    "metrics": {
+        "load_avg": "$load_avg",
+        "disk_usage": "$disk_usage",
+        "memory_usage": "$memory_usage",
+        "uptime": "$(uptime -p)"
+    }
+}
+EOF
+)
+    
+    # Enviar heartbeat
+    curl -s -X POST \
+        -H "Content-Type: application/json" \
+        -d "$payload" \
+        "http://$MASTER_IP:8080/api/heartbeat" >/dev/null 2>&1
+}
+
+setup_heartbeat() {
+    # Crear script de heartbeat automático
+    cat > "/opt/bytefense/bin/heartbeat.sh" << 'EOF'
+#!/bin/bash
+# Heartbeat automático para nodos satélite
+
+while true; do
+    /opt/bytefense/bin/bytefense-ctl heartbeat
+    sleep 60  # Enviar heartbeat cada minuto
+done
+EOF
+    
+    chmod +x "/opt/bytefense/bin/heartbeat.sh"
+    
+    # Crear servicio systemd para heartbeat
+    cat > "/etc/systemd/system/bytefense-heartbeat.service" << EOF
+[Unit]
+Description=Bytefense Heartbeat Service
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=bytefense
+ExecStart=/opt/bytefense/bin/heartbeat.sh
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    
+    systemctl daemon-reload
+    systemctl enable bytefense-heartbeat
+    systemctl start bytefense-heartbeat
+    
+    echo "💓 Servicio de heartbeat configurado y iniciado"
+}
+
+update_intel() {
+    echo "🔄 Actualizando inteligencia de amenazas..."
+    
+    # Actualizar listas de IPs maliciosas
+    curl -s "https://raw.githubusercontent.com/firehol/blocklist-ipsets/master/firehol_level1.netset" > "$BYTEFENSE_HOME/feeds/blacklist-ips.txt"
+    
+    # Actualizar listas de dominios maliciosos
+    curl -s "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts" | grep "0.0.0.0" | awk '{print $2}' > "$BYTEFENSE_HOME/feeds/blacklist-domains.txt"
+    
+    # Actualizar Pi-hole
+    pihole -g
+    
+    echo "✅ Inteligencia actualizada"
+}
+
+show_intel() {
+    echo "🧠 Inteligencia de Amenazas"
+    echo "==========================="
+    
+    if [ -f "$DB_FILE" ]; then
+        echo "📊 Estadísticas:"
+        sqlite3 "$DB_FILE" "SELECT 'IPs bloqueadas: ' || COUNT(*) FROM blocked_ips;"
+        sqlite3 "$DB_FILE" "SELECT 'Dominios bloqueados: ' || COUNT(*) FROM blocked_domains;"
+        
+        echo ""
+        echo "🚫 Últimas IPs bloqueadas:"
+        sqlite3 "$DB_FILE" "SELECT ip, reason, date FROM blocked_ips ORDER BY date DESC LIMIT 10;" | column -t -s '|'
+    else
+        echo "❌ Base de datos no encontrada"
+    fi
+}
+
+add_intel() {
+    local ip="$1"
+    if [ -z "$ip" ]; then
+        echo "❌ Debe especificar una IP"
+        return 1
+    fi
+    
+    sqlite3 "$DB_FILE" "INSERT OR IGNORE INTO blocked_ips (ip, reason, date) VALUES ('$ip', 'Manual', datetime('now'));"
+    echo "✅ IP $ip agregada a lista negra"
+}
+
+toggle_stealth() {
+    local mode="$1"
+    
+    if [ "$mode" = "on" ]; then
+        # Deshabilitar servicios visibles
+        systemctl stop bytefense-dashboard
+        ufw deny 8080/tcp
+        echo "🥷 Modo sigilo activado"
+    elif [ "$mode" = "off" ]; then
+        # Habilitar servicios
+        systemctl start bytefense-dashboard
+        ufw allow 8080/tcp
+        echo "👁️  Modo sigilo desactivado"
+    else
+        echo "❌ Uso: bytefense-ctl sigilo on|off"
+    fi
+}
+
+setup_wireguard() {
+    echo "🔐 Configurando WireGuard..."
+    
+    cd "$BYTEFENSE_HOME/wireguard"
+    
+    # Generar claves si no existen
+    if [ ! -f "private.key" ]; then
+        wg genkey > private.key
+        wg pubkey < private.key > public.key
+    fi
+    
+    PRIVATE_KEY=$(cat private.key)
+    PUBLIC_KEY=$(cat public.key)
+    SERVER_IP=$(hostname -I | awk '{print $1}')
+    
+    # Crear configuración del servidor
+    cat > /etc/wireguard/wg0.conf << EOF
+[Interface]
+PrivateKey = $PRIVATE_KEY
+Address = 10.42.0.1/24
+ListenPort = 51820
+PostUp = iptables -A FORWARD -i %i -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
+
+EOF
+    
+    # Habilitar IP forwarding
+    echo 'net.ipv4.ip_forward=1' >> /etc/sysctl.conf
+    sysctl -p
+    
+    # Iniciar WireGuard
+    systemctl enable wg-quick@wg0
+    systemctl start wg-quick@wg0
+    
+    echo "✅ WireGuard configurado"
+    echo "🔑 Clave pública: $PUBLIC_KEY"
+}
+
+show_qr() {
+    if [ ! -f "$BYTEFENSE_HOME/wireguard/client.conf" ]; then
+        # Generar configuración de cliente
+        cd "$BYTEFENSE_HOME/wireguard"
+        
+        wg genkey > client_private.key
+        wg pubkey < client_private.key > client_public.key
+        
+        CLIENT_PRIVATE=$(cat client_private.key)
+        SERVER_PUBLIC=$(cat public.key)
+        SERVER_IP=$(curl -s ifconfig.me)
+        
+        cat > client.conf << EOF
+[Interface]
+PrivateKey = $CLIENT_PRIVATE
+Address = 10.42.0.2/32
+DNS = 10.42.0.1
+
+[Peer]
+PublicKey = $SERVER_PUBLIC
+Endpoint = $SERVER_IP:51820
+AllowedIPs = 0.0.0.0/0
+PersistentKeepalive = 25
+EOF
+    fi
+    
+    echo "📱 Configuración cliente WireGuard:"
+    qrencode -t ansiutf8 < "$BYTEFENSE_HOME/wireguard/client.conf"
+}
+
+# Procesar comandos
+case "$1" in
+    init)
+        shift
+        init_node "$@"
+        ;;
+    status)
+        show_status
+        ;;
+    update)
+        update_intel
+        ;;
+    intel)
+        case "$2" in
+            show)
+                show_intel
+                ;;
+            add)
+                add_intel "$3"
+                ;;
+            *)
+                echo "❌ Uso: bytefense-ctl intel show|add <ip>"
+                ;;
+        esac
+        ;;
+    sigilo)
+        toggle_stealth "$2"
+        ;;
+    wireguard)
+        case "$2" in
+            setup)
+                setup_wireguard
+                ;;
+            qr)
+                show_qr
+                ;;
+            add-client)
+                shift 2
+                add_wireguard_client "$@"
+                ;;
+            show-client)
+                show_wireguard_client "$3"
+                ;;
+            *)
+                echo "❌ Uso: bytefense-ctl wireguard setup|qr|add-client|show-client"
+                ;;
+        esac
+        ;;
+    register)
+        register_node "$2"
+        ;;
+    nodes)
+        case "$2" in
+            list)
+                list_nodes
+                ;;
+            status)
+                show_nodes_status
+                ;;
+            *)
+                echo "❌ Uso: bytefense-ctl nodes list|status"
+                ;;
+        esac
+        ;;
+    heartbeat)
+        send_heartbeat
+        ;;
+    help|--help|-h)
+        show_help
+        ;;
+    *)
+        echo "❌ Comando no reconocido: $1"
+        show_help
+        exit 1
+        ;;
+esac

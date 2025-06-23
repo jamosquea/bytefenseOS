@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Demo Interactiva - Bytefense OS</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/demo.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <header class="header">
+        <nav class="navbar">
+            <div class="container">
+                <div class="nav-brand">
+                    <img src="assets/images/logo.svg" alt="Bytefense OS" class="logo">
+                    <span class="brand-text">Bytefense OS</span>
+                </div>
+                <ul class="nav-menu">
+                    <li><a href="index.html">Inicio</a></li>
+                    <li><a href="features.html">Características</a></li>
+                    <li><a href="demo.html" class="active">Demo</a></li>
+                    <li><a href="pricing.html">Precios</a></li>
+                    <li><a href="contact.html">Contacto</a></li>
+                </ul>
+            </div>
+        </nav>
+    </header>
+
+    <main class="demo-main">
+        <div class="demo-header">
+            <div class="container">
+                <h1>Simulación Interactiva de Bytefense OS</h1>
+                <p>Experimenta en tiempo real cómo Bytefense OS protege tu infraestructura</p>
+                <div class="demo-controls">
+                    <button id="startDemo" class="btn btn-primary">
+                        <i class="fas fa-play"></i> Iniciar Simulación
+                    </button>
+                    <button id="resetDemo" class="btn btn-secondary">
+                        <i class="fas fa-refresh"></i> Reiniciar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="demo-dashboard">
+            <div class="container">
+                <!-- Status Cards -->
+                <div class="status-grid">
+                    <div class="status-card">
+                        <div class="status-icon">
+                            <i class="fas fa-shield-alt"></i>
+                        </div>
+                        <div class="status-info">
+                            <h3>Estado del Sistema</h3>
+                            <span id="systemStatus" class="status-value protected">PROTEGIDO</span>
+                        </div>
+                    </div>
+                    <div class="status-card">
+                        <div class="status-icon">
+                            <i class="fas fa-ban"></i>
+                        </div>
+                        <div class="status-info">
+                            <h3>Amenazas Bloqueadas</h3>
+                            <span id="threatsBlocked" class="status-value">0</span>
+                        </div>
+                    </div>
+                    <div class="status-card">
+                        <div class="status-icon">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <div class="status-info">
+                            <h3>Usuarios Conectados</h3>
+                            <span id="connectedUsers" class="status-value">12</span>
+                        </div>
+                    </div>
+                    <div class="status-card">
+                        <div class="status-icon">
+                            <i class="fas fa-tachometer-alt"></i>
+                        </div>
+                        <div class="status-info">
+                            <h3>Rendimiento</h3>
+                            <span id="performance" class="status-value">98%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Section -->
+                <div class="charts-section">
+                    <div class="chart-container">
+                        <h3>Tráfico de Red en Tiempo Real</h3>
+                        <canvas id="trafficChart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <h3>Tipos de Amenazas Detectadas</h3>
+                        <canvas id="threatsChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Attack Simulation -->
+                <div class="attack-simulation">
+                    <h3>Simulador de Ataques</h3>
+                    <p>Simula diferentes tipos de ataques y observa cómo Bytefense OS los bloquea automáticamente</p>
+                    <div class="attack-buttons">
+                        <button class="attack-btn" data-attack="ddos">
+                            <i class="fas fa-bomb"></i> Ataque DDoS
+                        </button>
+                        <button class="attack-btn" data-attack="malware">
+                            <i class="fas fa-virus"></i> Malware
+                        </button>
+                        <button class="attack-btn" data-attack="bruteforce">
+                            <i class="fas fa-key"></i> Fuerza Bruta
+                        </button>
+                        <button class="attack-btn" data-attack="phishing">
+                            <i class="fas fa-fish"></i> Phishing
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Activity Log -->
+                <div class="activity-log">
+                    <h3>Log de Actividad en Tiempo Real</h3>
+                    <div id="logContainer" class="log-container">
+                        <div class="log-entry info">
+                            <span class="timestamp">14:32:15</span>
+                            <span class="message">Sistema iniciado correctamente</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="js/demo-simulation.js"></script>
+    <script src="js/charts.js"></script>
+</body>
+</html>

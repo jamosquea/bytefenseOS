@@ -1,0 +1,92 @@
+#!/bin/bash
+# Bytefense OS - Verificación de Salud del Sistema
+
+BYTEFENSE_HOME="/opt/bytefense"
+CONFIG_FILE="$BYTEFENSE_HOME/system/bytefense.conf"
+DB_FILE="$BYTEFENSE_HOME/intel/threats.db"
+
+# Colores para output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+check_database() {
+    echo -n "Verificando base de datos... "
+    if [ -f "$DB_FILE" ] && sqlite3 "$DB_FILE" "SELECT 1;" >/dev/null 2>&1; then
+        echo -e "${GREEN}✓${NC}"
+        return 0
+    else
+        echo -e "${RED}✗${NC}"
+        return 1
+    fi
+}
+
+check_services() {
+    echo "Verificando servicios:"
+    local services=("bytefense-dashboard" "bytefense-watch")
+    local all_ok=true
+    
+    for service in "${services[@]}"; do
+        echo -n "  $service... "
+        if systemctl is-active --quiet "$service" 2>/dev/null; then
+            echo -e "${GREEN}✓${NC}"
+        else
+            echo -e "${RED}✗${NC}"
+            all_ok=false
+        fi
+    done
+    
+    $all_ok
+}
+
+check_network() {
+    echo -n "Verificando conectividad... "
+    if ping -c 1 8.8.8.8 >/dev/null 2>&1; then
+        echo -e "${GREEN}✓${NC}"
+        return 0
+    else
+        echo -e "${RED}✗${NC}"
+        return 1
+    fi
+}
+
+check_disk_space() {
+    echo -n "Verificando espacio en disco... "
+    local usage=$(df "$BYTEFENSE_HOME" | awk 'NR==2 {print $5}' | sed 's/%//')
+    
+    if [ "$usage" -lt 80 ]; then
+        echo -e "${GREEN}✓ (${usage}%)${NC}"
+        return 0
+    elif [ "$usage" -lt 90 ]; then
+        echo -e "${YELLOW}⚠ (${usage}%)${NC}"
+        return 1
+    else
+        echo -e "${RED}✗ (${usage}%)${NC}"
+        return 1
+    fi
+}
+
+main() {
+    echo "🏥 Verificación de Salud de Bytefense OS"
+    echo "======================================="
+    echo ""
+    
+    local issues=0
+    
+    check_database || ((issues++))
+    check_services || ((issues++))
+    check_network || ((issues++))
+    check_disk_space || ((issues++))
+    
+    echo ""
+    if [ $issues -eq 0 ]; then
+        echo -e "${GREEN}✅ Sistema saludable${NC}"
+        exit 0
+    else
+        echo -e "${RED}⚠️  Se encontraron $issues problema(s)${NC}"
+        exit 1
+    fi
+}
+
+main "$@"

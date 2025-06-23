@@ -3,14 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bytefense OS - Defensa Digital Distribuida</title>
+    <title>Bytefense OS - Defensa Digital Avanzada con IA</title>
     <link rel="stylesheet" href="css/main.css">
     <link rel="stylesheet" href="css/animations.css">
     <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
     <link rel="icon" type="image/svg+xml" href="images/logo.svg">
-    <meta name="description" content="Solución completa de ciberseguridad para empresas. Protege tu infraestructura con Bytefense OS.">
-    <link rel="stylesheet" href="css/responsive.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <meta name="description" content="Solución completa de ciberseguridad con IA para empresas. Monitoreo de red avanzado, análisis de amenazas y protección en tiempo real.">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <!-- Header -->
@@ -18,18 +19,20 @@
         <nav class="navbar">
             <div class="container">
                 <div class="nav-brand">
-                    <img src="assets/images/logo.svg" alt="Bytefense OS" class="logo">
+                    <img src="images/logo.svg" alt="Bytefense OS" class="logo">
                     <span class="brand-text">Bytefense OS</span>
+                    <span class="version-badge">v2.0 AI</span>
                 </div>
                 <ul class="nav-menu">
                     <li><a href="#home">Inicio</a></li>
                     <li><a href="#features">Características</a></li>
+                    <li><a href="#monitoring">Monitoreo IA</a></li>
                     <li><a href="demo.html">Demo</a></li>
                     <li><a href="pricing.html">Precios</a></li>
-                    <li><a href="contact.html">Contacto</a></li>
+                    <li><a href="#contact">Contacto</a></li>
                 </ul>
                 <div class="nav-cta">
-                    <a href="demo.html" class="btn btn-primary">Probar Demo</a>
+                    <a href="web/network-monitoring-dashboard.html" class="btn btn-primary">Dashboard Live</a>
                 </div>
             </div>
         </nav>
@@ -37,51 +40,88 @@
 
     <!-- Hero Section -->
     <section id="home" class="hero">
+        <div class="hero-background">
+            <div class="network-animation"></div>
+        </div>
         <div class="container">
             <div class="hero-content">
                 <div class="hero-text">
                     <h1 class="hero-title">
-                        Protección Digital <span class="highlight">Empresarial</span>
-                        de Nueva Generación
+                        Protección Digital <span class="highlight">Inteligente</span>
+                        con IA Avanzada
                     </h1>
                     <p class="hero-subtitle">
-                        Bytefense OS es la solución completa de ciberseguridad que tu empresa necesita. 
-                        Protección avanzada, monitoreo en tiempo real y respuesta automática a amenazas.
+                        Bytefense OS v2.0 integra inteligencia artificial para monitoreo de red en tiempo real, 
+                        análisis predictivo de amenazas y respuesta automática. La evolución de la ciberseguridad empresarial.
                     </p>
                     <div class="hero-stats">
                         <div class="stat">
                             <span class="stat-number">99.9%</span>
-                            <span class="stat-label">Uptime</span>
+                            <span class="stat-label">Detección IA</span>
                         </div>
                         <div class="stat">
                             <span class="stat-number">24/7</span>
                             <span class="stat-label">Monitoreo</span>
                         </div>
                         <div class="stat">
-                            <span class="stat-number">0</span>
-                            <span class="stat-label">Configuración</span>
+                            <span class="stat-number">0ms</span>
+                            <span class="stat-label">Respuesta</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-number">∞</span>
+                            <span class="stat-label">Nodos</span>
                         </div>
                     </div>
                     <div class="hero-cta">
-                        <a href="demo.html" class="btn btn-primary btn-large">
-                            <i class="fas fa-play"></i> Ver Demo Interactiva
+                        <a href="web/network-monitoring-dashboard.html" class="btn btn-primary btn-large">
+                            <i class="fas fa-brain"></i> Dashboard IA
                         </a>
-                        <a href="#features" class="btn btn-secondary btn-large">
-                            <i class="fas fa-info-circle"></i> Más Información
+                        <a href="demo.html" class="btn btn-secondary btn-large">
+                            <i class="fas fa-play"></i> Ver Demo
                         </a>
                     </div>
                 </div>
                 <div class="hero-visual">
                     <div class="dashboard-preview">
-                        <img src="assets/images/dashboard-preview.png" alt="Dashboard Preview">
+                        <div class="live-dashboard">
+                            <div class="dashboard-header">
+                                <h3>Monitor de Red en Vivo</h3>
+                                <div class="status-indicator active"></div>
+                            </div>
+                            <div class="network-topology">
+                                <div class="node node-central"></div>
+                                <div class="node node-1"></div>
+                                <div class="node node-2"></div>
+                                <div class="node node-3"></div>
+                                <div class="connection"></div>
+                            </div>
+                            <div class="metrics-grid">
+                                <div class="metric">
+                                    <span class="metric-value">247</span>
+                                    <span class="metric-label">Nodos Activos</span>
+                                </div>
+                                <div class="metric">
+                                    <span class="metric-value">1,847</span>
+                                    <span class="metric-label">Amenazas Bloqueadas</span>
+                                </div>
+                                <div class="metric">
+                                    <span class="metric-value">98.7%</span>
+                                    <span class="metric-label">Rendimiento</span>
+                                </div>
+                            </div>
+                        </div>
                         <div class="floating-cards">
+                            <div class="card ai-card">
+                                <i class="fas fa-robot"></i>
+                                <span>IA: 3 Anomalías Detectadas</span>
+                            </div>
                             <div class="card security-card">
                                 <i class="fas fa-shield-alt"></i>
-                                <span>Amenazas Bloqueadas: 1,247</span>
+                                <span>Seguridad: Nivel Máximo</span>
                             </div>
-                            <div class="card performance-card">
-                                <i class="fas fa-tachometer-alt"></i>
-                                <span>Rendimiento: 98%</span>
+                            <div class="card network-card">
+                                <i class="fas fa-network-wired"></i>
+                                <span>Red: 247 Dispositivos</span>
                             </div>
                         </div>
                     </div>
@@ -90,75 +130,172 @@
         </div>
     </section>
 
-    <!-- Features Section -->
+    <!-- New AI Monitoring Section -->
+    <section id="monitoring" class="ai-monitoring">
+        <div class="container">
+            <div class="section-header">
+                <h2>Monitoreo Inteligente con IA</h2>
+                <p>Tecnología de vanguardia para protección empresarial</p>
+            </div>
+            <div class="monitoring-grid">
+                <div class="monitoring-card">
+                    <div class="card-icon">
+                        <i class="fas fa-brain"></i>
+                    </div>
+                    <h3>Análisis Predictivo</h3>
+                    <p>Algoritmos de machine learning detectan patrones anómalos antes de que se conviertan en amenazas.</p>
+                    <div class="feature-list">
+                        <span class="feature-tag">Isolation Forest</span>
+                        <span class="feature-tag">DBSCAN Clustering</span>
+                        <span class="feature-tag">Predicción Temporal</span>
+                    </div>
+                </div>
+                <div class="monitoring-card">
+                    <div class="card-icon">
+                        <i class="fas fa-sitemap"></i>
+                    </div>
+                    <h3>Topología de Red</h3>
+                    <p>Mapeo automático de dispositivos, aplicaciones y conexiones en tiempo real.</p>
+                    <div class="feature-list">
+                        <span class="feature-tag">Auto-Discovery</span>
+                        <span class="feature-tag">Fingerprinting</span>
+                        <span class="feature-tag">Visualización 3D</span>
+                    </div>
+                </div>
+                <div class="monitoring-card">
+                    <div class="card-icon">
+                        <i class="fas fa-globe"></i>
+                    </div>
+                    <h3>Análisis Web</h3>
+                    <p>Monitoreo de sitios visitados con categorización automática y análisis de riesgos.</p>
+                    <div class="feature-list">
+                        <span class="feature-tag">DNS Analysis</span>
+                        <span class="feature-tag">Risk Classification</span>
+                        <span class="feature-tag">Pi-hole Integration</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Enhanced Features Section -->
     <section id="features" class="features">
         <div class="container">
             <div class="section-header">
-                <h2>¿Por qué elegir Bytefense OS?</h2>
-                <p>Protección integral diseñada para empresas modernas</p>
+                <h2>Características Avanzadas v2.0</h2>
+                <p>Protección integral potenciada por inteligencia artificial</p>
             </div>
             <div class="features-grid">
                 <div class="feature-card">
                     <div class="feature-icon">
                         <i class="fas fa-shield-virus"></i>
                     </div>
-                    <h3>Protección Avanzada</h3>
-                    <p>Firewall inteligente, filtrado DNS y detección de amenazas en tiempo real.</p>
+                    <h3>Protección IA Avanzada</h3>
+                    <p>Firewall inteligente con machine learning, detección de amenazas zero-day y respuesta automática.</p>
                     <ul>
-                        <li>Bloqueo automático de IPs maliciosas</li>
-                        <li>Filtrado DNS con Pi-hole</li>
-                        <li>Detección de intrusiones</li>
+                        <li>Detección de anomalías en tiempo real</li>
+                        <li>Bloqueo predictivo de amenazas</li>
+                        <li>Análisis comportamental de tráfico</li>
+                        <li>Integración con threat intelligence</li>
                     </ul>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">
                         <i class="fas fa-network-wired"></i>
                     </div>
-                    <h3>VPN Empresarial</h3>
-                    <p>Acceso remoto seguro con WireGuard para tu equipo distribuido.</p>
+                    <h3>VPN Empresarial + WireGuard</h3>
+                    <p>Acceso remoto ultra-seguro con cifrado cuántico-resistente y gestión automática.</p>
                     <ul>
-                        <li>Configuración automática</li>
-                        <li>Cifrado de grado militar</li>
-                        <li>Gestión centralizada de usuarios</li>
+                        <li>Configuración zero-touch</li>
+                        <li>Cifrado post-cuántico</li>
+                        <li>Balanceador de carga automático</li>
+                        <li>Gestión centralizada multi-sitio</li>
                     </ul>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">
                         <i class="fas fa-chart-line"></i>
                     </div>
-                    <h3>Monitoreo 24/7</h3>
-                    <p>Dashboard en tiempo real con alertas automáticas y reportes detallados.</p>
+                    <h3>Dashboard IA 24/7</h3>
+                    <p>Monitoreo inteligente con análisis predictivo, alertas contextuales y reportes ejecutivos.</p>
                     <ul>
-                        <li>Métricas en tiempo real</li>
-                        <li>Alertas por email/SMS</li>
-                        <li>Reportes ejecutivos</li>
+                        <li>Métricas predictivas en tiempo real</li>
+                        <li>Alertas inteligentes contextuales</li>
+                        <li>Reportes ejecutivos automatizados</li>
+                        <li>Integración con SIEM/SOAR</li>
                     </ul>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">
-                        <i class="fas fa-cogs"></i>
+                        <i class="fas fa-microchip"></i>
                     </div>
-                    <h3>Fácil Implementación</h3>
-                    <p>Instalación automatizada y configuración sin conocimientos técnicos.</p>
+                    <h3>Motor de IA Integrado</h3>
+                    <p>Procesamiento edge con modelos pre-entrenados para análisis sin latencia.</p>
                     <ul>
-                        <li>Instalación en 15 minutos</li>
-                        <li>Configuración automática</li>
-                        <li>Soporte técnico incluido</li>
+                        <li>Procesamiento local edge</li>
+                        <li>Modelos pre-entrenados incluidos</li>
+                        <li>Aprendizaje continuo adaptativo</li>
+                        <li>API para integraciones custom</li>
+                    </ul>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-eye"></i>
+                    </div>
+                    <h3>Monitoreo de Aplicaciones</h3>
+                    <p>Visibilidad completa de aplicaciones por dispositivo con análisis de comportamiento.</p>
+                    <ul>
+                        <li>Inventario automático de software</li>
+                        <li>Análisis de uso y rendimiento</li>
+                        <li>Detección de software malicioso</li>
+                        <li>Control de acceso granular</li>
+                    </ul>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-cloud"></i>
+                    </div>
+                    <h3>Integración Multi-Cloud</h3>
+                    <p>Protección híbrida para infraestructuras on-premise, cloud y edge computing.</p>
+                    <ul>
+                        <li>Soporte AWS, Azure, GCP</li>
+                        <li>Kubernetes security nativo</li>
+                        <li>Edge computing protection</li>
+                        <li>Gestión unificada multi-cloud</li>
                     </ul>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Demo CTA -->
+    <!-- Live Demo CTA -->
     <section class="demo-cta">
         <div class="container">
             <div class="cta-content">
-                <h2>¿Listo para ver Bytefense OS en acción?</h2>
-                <p>Prueba nuestra simulación interactiva y descubre cómo protegemos tu empresa</p>
-                <a href="demo.html" class="btn btn-primary btn-large">
-                    <i class="fas fa-play"></i> Iniciar Demo Interactiva
-                </a>
+                <h2>¿Listo para experimentar el futuro de la ciberseguridad?</h2>
+                <p>Accede a nuestro dashboard en vivo y observa la IA trabajando en tiempo real</p>
+                <div class="cta-buttons">
+                    <a href="web/network-monitoring-dashboard.html" class="btn btn-primary btn-large">
+                        <i class="fas fa-brain"></i> Dashboard IA en Vivo
+                    </a>
+                    <a href="demo.html" class="btn btn-secondary btn-large">
+                        <i class="fas fa-play"></i> Demo Interactiva
+                    </a>
+                </div>
+                <div class="live-stats">
+                    <div class="live-stat">
+                        <span class="stat-number" id="liveThreats">1,247</span>
+                        <span class="stat-label">Amenazas Bloqueadas Hoy</span>
+                    </div>
+                    <div class="live-stat">
+                        <span class="stat-number" id="liveNodes">847</span>
+                        <span class="stat-label">Dispositivos Monitoreados</span>
+                    </div>
+                    <div class="live-stat">
+                        <span class="stat-number" id="liveAnomalies">3</span>
+                        <span class="stat-label">Anomalías Detectadas</span>
+                    </div>
+                </div>
             </div>
         </div>
     </section>
@@ -168,44 +305,101 @@
         <div class="container">
             <div class="footer-content">
                 <div class="footer-section">
-                    <h3>Bytefense OS</h3>
-                    <p>Protección digital empresarial de nueva generación</p>
+                    <div class="footer-brand">
+                        <img src="images/logo.svg" alt="Bytefense OS" class="footer-logo">
+                        <h3>Bytefense OS</h3>
+                    </div>
+                    <p>Protección digital empresarial de nueva generación con inteligencia artificial integrada</p>
                     <div class="social-links">
                         <a href="#"><i class="fab fa-linkedin"></i></a>
                         <a href="#"><i class="fab fa-twitter"></i></a>
                         <a href="#"><i class="fab fa-github"></i></a>
+                        <a href="#"><i class="fab fa-discord"></i></a>
                     </div>
                 </div>
                 <div class="footer-section">
                     <h4>Producto</h4>
                     <ul>
-                        <li><a href="features.html">Características</a></li>
+                        <li><a href="#features">Características</a></li>
+                        <li><a href="web/network-monitoring-dashboard.html">Dashboard IA</a></li>
                         <li><a href="pricing.html">Precios</a></li>
                         <li><a href="demo.html">Demo</a></li>
                     </ul>
                 </div>
                 <div class="footer-section">
-                    <h4>Soporte</h4>
+                    <h4>Tecnología</h4>
                     <ul>
-                        <li><a href="contact.html">Contacto</a></li>
-                        <li><a href="#">Documentación</a></li>
-                        <li><a href="#">FAQ</a></li>
+                        <li><a href="#">Documentación API</a></li>
+                        <li><a href="#">Integraciones</a></li>
+                        <li><a href="#">Modelos de IA</a></li>
+                        <li><a href="#">Roadmap</a></li>
                     </ul>
                 </div>
                 <div class="footer-section">
-                    <h4>Contacto</h4>
-                    <p>Email: sales@bytefense.com</p>
-                    <p>Teléfono: +1 (555) 123-4567</p>
+                    <h4>Soporte</h4>
+                    <ul>
+                        <li><a href="#contact">Contacto</a></li>
+                        <li><a href="#">Centro de Ayuda</a></li>
+                        <li><a href="#">Status Page</a></li>
+                        <li><a href="#">Comunidad</a></li>
+                    </ul>
                 </div>
             </div>
             <div class="footer-bottom">
-                <p>&copy; 2024 Bytefense OS. Todos los derechos reservados.</p>
+                <p>&copy; 2024 Bytefense OS. Todos los derechos reservados. | Powered by AI</p>
+                <div class="footer-badges">
+                    <span class="badge">SOC 2 Compliant</span>
+                    <span class="badge">ISO 27001</span>
+                    <span class="badge">GDPR Ready</span>
+                </div>
             </div>
         </div>
     </footer>
 
-    <!-- Incluir nuevos scripts -->
+    <!-- Scripts -->
     <script src="js/effects.js"></script>
     <script src="js/main.js"></script>
+    <script>
+        // Animaciones en tiempo real para estadísticas
+        function updateLiveStats() {
+            const threats = document.getElementById('liveThreats');
+            const nodes = document.getElementById('liveNodes');
+            const anomalies = document.getElementById('liveAnomalies');
+            
+            if (threats) {
+                const currentThreats = parseInt(threats.textContent.replace(',', ''));
+                threats.textContent = (currentThreats + Math.floor(Math.random() * 3)).toLocaleString();
+            }
+            
+            if (nodes) {
+                const currentNodes = parseInt(nodes.textContent);
+                nodes.textContent = (currentNodes + Math.floor(Math.random() * 5 - 2));
+            }
+            
+            if (anomalies) {
+                anomalies.textContent = Math.floor(Math.random() * 8);
+            }
+        }
+        
+        // Actualizar estadísticas cada 5 segundos
+        setInterval(updateLiveStats, 5000);
+        
+        // Animación de red en el hero
+        function createNetworkAnimation() {
+            const container = document.querySelector('.network-animation');
+            if (!container) return;
+            
+            for (let i = 0; i < 20; i++) {
+                const dot = document.createElement('div');
+                dot.className = 'network-dot';
+                dot.style.left = Math.random() * 100 + '%';
+                dot.style.top = Math.random() * 100 + '%';
+                dot.style.animationDelay = Math.random() * 2 + 's';
+                container.appendChild(dot);
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', createNetworkAnimation);
+    </script>
 </body>
 </html>
